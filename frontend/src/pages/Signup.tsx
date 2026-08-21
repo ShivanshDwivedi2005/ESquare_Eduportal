@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,8 +22,9 @@ const accountTypes: { role: UserRole; blurb: string }[] = [
 ];
 
 export default function SignupPage() {
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState(1);
-  const [role, setRole] = useState<UserRole>('student');
+  const [role, setRole] = useState<UserRole>(searchParams.get('role') === 'admin' ? 'admin' : 'student');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [institution, setInstitution] = useState(institutions[0].id);

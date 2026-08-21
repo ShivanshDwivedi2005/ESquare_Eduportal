@@ -123,7 +123,7 @@ export default function Index() {
             </motion.p>
 
             <motion.div
-              className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row"
+              className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap"
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.45, ease: [0.16, 1, 0.3, 1] }}
@@ -131,6 +131,9 @@ export default function Index() {
               <Link to="/signup">
                 <ShimmerButton>Create your account <ArrowRight className="h-4 w-4" /></ShimmerButton>
               </Link>
+              <Button size="lg" variant="secondary" className="rounded-full" asChild>
+                <Link to="/signup?role=admin">Register your institute</Link>
+              </Button>
               <Button size="lg" variant="outline" className="rounded-full" asChild>
                 <Link to="/login">Explore a role workspace</Link>
               </Button>
