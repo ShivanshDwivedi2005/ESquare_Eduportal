@@ -57,7 +57,7 @@ export default function SettingsPage() {
           <SectionCard title="Danger zone" bodyClassName="p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground">Sign out of this workspace on this device.</p>
-              <Button variant="destructive" onClick={logout}>Sign out</Button>
+              <Button variant="destructive" onClick={() => void logout()}>Sign out</Button>
             </div>
           </SectionCard>
         </TabsContent>

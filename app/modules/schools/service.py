@@ -1,11 +1,12 @@
 import random
 import string
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.modules.schools import repository
 from app.modules.schools.models import SchoolRegistrationRequest, School
 
-from app.modules.auth.models import User, PasswordCredential
+from app.modules.auth.models import User
 from app.modules.schools.models import SchoolMembership
 
 from app.common.password import hash_password
@@ -45,6 +46,13 @@ def approve_request(db: Session, request_id: str):
     if req.status != "pending":
         return {"error": "Already processed"}
 
+    user = db.query(User).filter(User.email == req.email.strip().lower()).first()
+    if not user or not user.email_verified:
+        raise HTTPException(
+            status_code=409,
+            detail="The institution administrator must create and verify an ESQUARE account first",
+        )
+
     # 1. Generate school code
     code = generate_school_code()
 
@@ -55,22 +63,7 @@ def approve_request(db: Session, request_id: str):
     )
     repository.create_school(db, school)
 
-    # 3. Create user
-    user = User(
-        email=req.email,
-        email_verified=True
-    )
-    db.add(user)
-    db.flush()
-
-    # 4. Password
-    credential = PasswordCredential(
-        user_id=user.id,
-        password_hash=req.password_hash
-    )
-    db.add(credential)
-
-    # 5. Membership (principal = role_id 4)
+    # 3. Assign the approved role to the administrator's existing account.
     membership = SchoolMembership(
         user_id=user.id,
         school_id=school.id,
@@ -78,7 +71,7 @@ def approve_request(db: Session, request_id: str):
     )
     db.add(membership)
 
-    # 6. Update request
+    # 4. Update request
     req.status = "approved"
 
     db.commit()

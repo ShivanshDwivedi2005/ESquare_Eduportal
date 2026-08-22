@@ -1,147 +1,285 @@
-import { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { AtSign, Check, GraduationCap, Mail, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { GraduationCap } from 'lucide-react';
+import { Spinner } from '@/components/common/Loading';
+import { ThemeToggle } from '@/components/common/ThemeToggle';
+import { authApi } from '@/services/auth';
 import { useAuthStore } from '@/stores/authStore';
-import { roleHome, roleLabel } from '@/lib/roles';
-import type { UserRole } from '@/types';
-import { institutions } from '@/mock-data';
+import { apiErrorMessage } from '@/lib/apiError';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { ThemeToggle } from '@/components/common/ThemeToggle';
 
-const accountTypes: { role: UserRole; blurb: string }[] = [
-  { role: 'student', blurb: 'Coursework, projects, opportunities and a professional profile.' },
-  { role: 'teacher', blurb: 'Class rosters, attendance, marks and materials.' },
-  { role: 'admin', blurb: 'Institution administration, admissions, HR and finance.' },
-  { role: 'organization', blurb: 'Post opportunities, run hackathons, hire students.' },
-  { role: 'public', blurb: 'Browse institutions, opportunities and public work.' },
-];
+
+type Availability = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
+
+const usernamePattern = /^[a-z0-9_](?:[a-z0-9_.]*[a-z0-9_])?$/;
+
 
 export default function SignupPage() {
-  const [searchParams] = useSearchParams();
-  const [step, setStep] = useState(1);
-  const [role, setRole] = useState<UserRole>(searchParams.get('role') === 'admin' ? 'admin' : 'student');
-  const [name, setName] = useState('');
+  const [step, setStep] = useState<'details' | 'verify'>('details');
+  const [displayName, setDisplayName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
-  const [institution, setInstitution] = useState(institutions[0].id);
-  const login = useAuthStore((s) => s.login);
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [otp, setOtp] = useState('');
+  const [availability, setAvailability] = useState<Availability>('idle');
+  const [pending, setPending] = useState(false);
+  const signup = useAuthStore((state) => state.signup);
   const navigate = useNavigate();
 
-  const needsInstitution = role === 'student' || role === 'teacher' || role === 'admin';
+  useEffect(() => {
+    if (!username) {
+      setAvailability('idle');
+      return;
+    }
+    if (username.length < 3 || username.length > 50 || !usernamePattern.test(username)) {
+      setAvailability('invalid');
+      return;
+    }
 
-  const finish = () => {
-    login(role);
-    toast.success('Account created — welcome to ESQUARE');
-    navigate(roleHome[role]);
+    setAvailability('checking');
+    const timeout = window.setTimeout(async () => {
+      try {
+        const result = await authApi.checkUsername(username);
+        setAvailability(result.available ? 'available' : 'taken');
+      } catch {
+        setAvailability('idle');
+      }
+    }, 400);
+    return () => window.clearTimeout(timeout);
+  }, [username]);
+
+  const requestCode = async (event?: React.FormEvent) => {
+    event?.preventDefault();
+    if (pending) return;
+    if (!displayName.trim()) return toast.error('Enter your name');
+    if (availability !== 'available') return toast.error('Choose an available username');
+    if (password.length < 8) return toast.error('Use at least 8 characters for your password');
+    if (password !== confirmPassword) return toast.error('The passwords do not match');
+
+    setPending(true);
+    try {
+      await authApi.sendOtp(email);
+      setStep('verify');
+      toast.success('Verification code sent');
+    } catch (error) {
+      toast.error(apiErrorMessage(error, 'We could not send the code. Try again.'));
+    } finally {
+      setPending(false);
+    }
   };
 
-  return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center bg-surface-muted px-4 py-12">
-      <div className="absolute right-4 top-4"><ThemeToggle /></div>
-      <Link to="/" className="mb-8 flex items-center gap-2.5">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-          <GraduationCap className="h-4.5 w-4.5" />
-        </span>
-        <span className="font-display text-lg font-extrabold tracking-tight">ESQUARE</span>
-      </Link>
+  const createAccount = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (pending || otp.length !== 6) return;
+    setPending(true);
 
-      <div className="surface-card w-full max-w-xl p-7">
-        <div className="mb-6 flex items-center gap-2">
-          {[1, 2, 3].map((s) => (
-            <span key={s} className={cn('h-1.5 flex-1 rounded-full', s <= step ? 'bg-primary' : 'bg-border')} />
-          ))}
+    try {
+      const verificationToken = await authApi.verifyOtp(email, otp);
+      await signup({ displayName, username, email, password, verificationToken });
+      toast.success('Your account is ready');
+      navigate('/app/feed', { replace: true });
+    } catch (error) {
+      toast.error(apiErrorMessage(error, 'We could not create your account. Try again.'));
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const availabilityCopy = {
+    idle: '3–50 characters. Letters, numbers, underscores, and periods.',
+    checking: 'Checking username…',
+    available: 'Username is available',
+    taken: 'That username is already taken',
+    invalid: 'Use 3–50 valid characters; periods cannot be first or last.',
+  }[availability];
+
+  return (
+    <div className="relative min-h-screen bg-surface-muted px-4 py-10 sm:py-14">
+      <div className="absolute right-4 top-4"><ThemeToggle /></div>
+      <div className="mx-auto w-full max-w-lg">
+        <Link to="/" className="mb-8 flex items-center justify-center gap-2.5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <GraduationCap className="h-4.5 w-4.5" />
+          </span>
+          <span className="font-display text-lg font-extrabold tracking-tight">ESQUARE</span>
+        </Link>
+
+        <div className="surface-card overflow-hidden">
+          <div className="border-b border-border px-6 py-5 sm:px-8">
+            <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
+              <span>{step === 'details' ? 'Create your account' : 'Check your email'}</span>
+              <span>{step === 'details' ? '1 of 2' : '2 of 2'}</span>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <span className="h-1 rounded-full bg-primary" />
+              <span className={cn('h-1 rounded-full', step === 'verify' ? 'bg-primary' : 'bg-border')} />
+            </div>
+          </div>
+
+          {step === 'details' ? (
+            <form onSubmit={requestCode} className="px-6 py-7 sm:px-8">
+              <div className="mb-7">
+                <h1 className="text-2xl font-bold">Start with one personal account</h1>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  You’ll begin with the general workspace. Institution tools appear after an administrator approves your role.
+                </p>
+              </div>
+
+              <div className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="display-name">Your name</Label>
+                  <div className="relative">
+                    <UserRound className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="display-name"
+                      className="pl-9"
+                      autoComplete="name"
+                      maxLength={100}
+                      value={displayName}
+                      onChange={(event) => setDisplayName(event.target.value)}
+                      placeholder="The name people know you by"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="username">Username</Label>
+                    <span className="text-xs text-muted-foreground">{username.length}/50</span>
+                  </div>
+                  <div className="relative">
+                    <AtSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="username"
+                      className="pl-9 pr-9"
+                      autoComplete="username"
+                      maxLength={50}
+                      value={username}
+                      onChange={(event) => setUsername(event.target.value.trim().toLowerCase())}
+                      placeholder="yourname"
+                      aria-describedby="username-status"
+                      required
+                    />
+                    {availability === 'available' && <Check className="absolute right-3 top-3 h-4 w-4 text-success" />}
+                    {availability === 'checking' && <span className="absolute right-3 top-3"><Spinner /></span>}
+                  </div>
+                  <p
+                    id="username-status"
+                    className={cn(
+                      'text-xs',
+                      availability === 'available' && 'text-success',
+                      (availability === 'taken' || availability === 'invalid') ? 'text-destructive' : 'text-muted-foreground',
+                    )}
+                  >
+                    {availabilityCopy}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-email">Email</Label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="signup-email"
+                      className="pl-9"
+                      type="email"
+                      autoComplete="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder="you@example.com"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password">Password</Label>
+                    <Input
+                      id="signup-password"
+                      type="password"
+                      autoComplete="new-password"
+                      minLength={8}
+                      maxLength={128}
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder="At least 8 characters"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-password">Confirm password</Label>
+                    <Input
+                      id="confirm-password"
+                      type="password"
+                      autoComplete="new-password"
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <Button type="submit" className="mt-7 w-full gap-2" size="lg" disabled={pending || availability !== 'available'}>
+                {pending && <Spinner />}{pending ? 'Sending code…' : 'Continue'}
+              </Button>
+              <p className="mt-4 text-center text-xs leading-relaxed text-muted-foreground">
+                By continuing, you agree to follow ESQUARE’s community and account policies.
+              </p>
+            </form>
+          ) : (
+            <form onSubmit={createAccount} className="px-6 py-8 sm:px-8">
+              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-primary-soft text-primary">
+                <Mail className="h-5 w-5" />
+              </div>
+              <div className="mt-5 text-center">
+                <h1 className="text-2xl font-bold">Enter the six-digit code</h1>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  We sent it to <span className="font-medium text-foreground">{email}</span>. It expires in five minutes.
+                </p>
+              </div>
+
+              <Label htmlFor="otp" className="sr-only">Verification code</Label>
+              <Input
+                id="otp"
+                className="mx-auto mt-7 h-12 max-w-xs text-center font-mono text-xl tracking-[0.45em]"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                value={otp}
+                onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))}
+                placeholder="000000"
+                autoFocus
+                required
+              />
+
+              <Button type="submit" className="mt-6 w-full gap-2" size="lg" disabled={pending || otp.length !== 6}>
+                {pending && <Spinner />}{pending ? 'Creating account…' : 'Create account'}
+              </Button>
+              <div className="mt-4 flex items-center justify-center gap-4 text-xs">
+                <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => setStep('details')}>
+                  Change details
+                </button>
+                <button type="button" className="font-medium text-primary hover:underline" onClick={() => void requestCode()} disabled={pending}>
+                  Send another code
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
-        {step === 1 && (
-          <>
-            <h1 className="text-xl font-bold">Choose your account type</h1>
-            <p className="mt-1 text-sm text-muted-foreground">This determines your workspace and permissions.</p>
-            <div className="mt-6 space-y-2.5">
-              {accountTypes.map((t) => (
-                <button
-                  key={t.role}
-                  onClick={() => setRole(t.role)}
-                  className={cn(
-                    'w-full rounded-xl border p-4 text-left transition-colors',
-                    role === t.role ? 'border-primary bg-primary-soft' : 'border-border hover:border-ring/40',
-                  )}
-                >
-                  <p className="font-display text-sm font-semibold">{roleLabel[t.role]}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{t.blurb}</p>
-                </button>
-              ))}
-            </div>
-            <Button className="mt-6 w-full" size="lg" onClick={() => setStep(2)}>Continue</Button>
-          </>
-        )}
-
-        {step === 2 && (
-          <>
-            <h1 className="text-xl font-bold">Tell us about you</h1>
-            <p className="mt-1 text-sm text-muted-foreground">You can change these details later in settings.</p>
-            <div className="mt-6 space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">{role === 'organization' ? 'Organization name' : 'Full name'}</Label>
-                <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Rahul Verma" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="signup-email">Email</Label>
-                <Input id="signup-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@institution.edu" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="signup-password">Password</Label>
-                <Input id="signup-password" type="password" placeholder="At least 8 characters" />
-              </div>
-            </div>
-            <div className="mt-6 flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setStep(1)}>Back</Button>
-              <Button className="flex-1" onClick={() => setStep(3)}>Continue</Button>
-            </div>
-          </>
-        )}
-
-        {step === 3 && (
-          <>
-            <h1 className="text-xl font-bold">{needsInstitution ? 'Connect your institution' : 'You are all set'}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {needsInstitution
-                ? 'Requests are reviewed by the institution administrator. You can browse in the meantime.'
-                : 'Your workspace is ready. You can complete your profile any time.'}
-            </p>
-            {needsInstitution && (
-              <div className="mt-6 space-y-4">
-                <div className="space-y-2">
-                  <Label>Institution</Label>
-                  <Select value={institution} onValueChange={setInstitution}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {institutions.map((i) => (
-                        <SelectItem key={i.id} value={i.id}>{i.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="enrolment">Enrolment / employee ID</Label>
-                  <Input id="enrolment" placeholder="STU-2026-00482" />
-                </div>
-              </div>
-            )}
-            <div className="mt-6 flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setStep(2)}>Back</Button>
-              <Button className="flex-1" onClick={finish}>Enter workspace</Button>
-            </div>
-          </>
-        )}
+        <p className="mt-6 text-center text-sm text-muted-foreground">
+          Already registered?{' '}
+          <Link to="/login" className="font-medium text-primary hover:underline">Sign in</Link>
+        </p>
       </div>
-
-      <p className="mt-6 text-sm text-muted-foreground">
-        Already registered? <Link to="/login" className="font-medium text-primary hover:underline">Sign in</Link>
-      </p>
     </div>
   );
 }

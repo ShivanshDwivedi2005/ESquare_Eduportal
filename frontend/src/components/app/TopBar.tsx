@@ -73,7 +73,7 @@ export function TopBar({ onOpenSearch }: { onOpenSearch: () => void }) {
               <Settings className="mr-2 h-4 w-4" /> Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => { logout(); navigate('/'); }}>
+            <DropdownMenuItem onClick={() => { void logout().finally(() => navigate('/')); }}>
               <LogOut className="mr-2 h-4 w-4" /> Sign out
             </DropdownMenuItem>
           </DropdownMenuContent>

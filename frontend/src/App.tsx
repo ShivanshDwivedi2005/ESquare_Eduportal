@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/app/ThemeProvider";
 import AppShell from "@/components/app/AppShell";
+import { RoleRoute, WorkspaceHome } from "@/components/app/RoleRoute";
 
 import Index from "./pages/Index";
 import LoginPage from "./pages/Login";
@@ -61,16 +62,10 @@ const App = () => (
             <Route path="/signup" element={<SignupPage />} />
 
             <Route element={<AppShell />}>
-              <Route path="/app" element={<Navigate to="/app/dashboard" replace />} />
-              <Route path="/app/dashboard" element={<Dashboard />} />
+              <Route path="/app" element={<WorkspaceHome />} />
               <Route path="/app/feed" element={<Feed />} />
               <Route path="/app/explore" element={<Explore />} />
-              <Route path="/app/classes" element={<Classes />} />
-              <Route path="/app/classes/:id" element={<ClassDetail />} />
-              <Route path="/app/attendance" element={<Attendance />} />
-              <Route path="/app/marks" element={<Marks />} />
               <Route path="/app/calendar" element={<CalendarPage />} />
-              <Route path="/app/messages" element={<Messages />} />
               <Route path="/app/projects" element={<Projects />} />
               <Route path="/app/projects/:id" element={<ProjectDetail />} />
               <Route path="/app/opportunities" element={<Opportunities />} />
@@ -83,21 +78,45 @@ const App = () => (
               <Route path="/app/institutions/:slug" element={<InstitutionProfile />} />
               <Route path="/app/organizations/:slug" element={<OrganizationProfile />} />
 
-              <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-              <Route path="/admin/dashboard" element={<AdminDashboard />} />
-              <Route path="/admin/students" element={<AdminStudents />} />
-              <Route path="/admin/teachers" element={<AdminTeachers />} />
-              <Route path="/admin/departments" element={<AdminDepartments />} />
-              <Route path="/admin/admissions" element={<AdminAdmissions />} />
-              <Route path="/admin/hr" element={<AdminHR />} />
-              <Route path="/admin/finance" element={<AdminFinance />} />
-              <Route path="/admin/reports" element={<AdminReports />} />
+              <Route element={<RoleRoute allowed={["student", "teacher"]} />}>
+                <Route path="/app/dashboard" element={<Dashboard />} />
+                <Route path="/app/classes" element={<Classes />} />
+                <Route path="/app/classes/:id" element={<ClassDetail />} />
+                <Route path="/app/attendance" element={<Attendance />} />
+                <Route path="/app/marks" element={<Marks />} />
+              </Route>
 
-              <Route path="/organization" element={<Navigate to="/organization/dashboard" replace />} />
-              <Route path="/organization/dashboard" element={<OrgDashboard />} />
-              <Route path="/organization/opportunities" element={<OrgOpportunities />} />
-              <Route path="/organization/applications" element={<OrgApplications />} />
-              <Route path="/organization/posts" element={<OrgPosts />} />
+              <Route element={<RoleRoute allowed={["student", "teacher", "principal", "admin", "hr", "finance", "admission", "organization"]} />}>
+                <Route path="/app/messages" element={<Messages />} />
+              </Route>
+
+              <Route element={<RoleRoute allowed={["principal", "admin"]} />}>
+                <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+                <Route path="/admin/dashboard" element={<AdminDashboard />} />
+              </Route>
+              <Route element={<RoleRoute allowed={["principal", "admin", "admission"]} />}>
+                <Route path="/admin/students" element={<AdminStudents />} />
+                <Route path="/admin/admissions" element={<AdminAdmissions />} />
+              </Route>
+              <Route element={<RoleRoute allowed={["principal", "admin", "hr"]} />}>
+                <Route path="/admin/teachers" element={<AdminTeachers />} />
+                <Route path="/admin/departments" element={<AdminDepartments />} />
+                <Route path="/admin/hr" element={<AdminHR />} />
+              </Route>
+              <Route element={<RoleRoute allowed={["admin", "finance"]} />}>
+                <Route path="/admin/finance" element={<AdminFinance />} />
+              </Route>
+              <Route element={<RoleRoute allowed={["principal", "admin", "finance"]} />}>
+                <Route path="/admin/reports" element={<AdminReports />} />
+              </Route>
+
+              <Route element={<RoleRoute allowed={["organization"]} />}>
+                <Route path="/organization" element={<Navigate to="/organization/dashboard" replace />} />
+                <Route path="/organization/dashboard" element={<OrgDashboard />} />
+                <Route path="/organization/opportunities" element={<OrgOpportunities />} />
+                <Route path="/organization/applications" element={<OrgApplications />} />
+                <Route path="/organization/posts" element={<OrgPosts />} />
+              </Route>
             </Route>
 
             <Route path="*" element={<NotFound />} />

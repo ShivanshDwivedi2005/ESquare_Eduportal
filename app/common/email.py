@@ -16,9 +16,13 @@ conf = ConnectionConfig(
 async def send_email_otp(email: str, otp: str):
 
     message = MessageSchema(
-        subject="Your OTP Code",
+        subject="Verify your ESQUARE email",
         recipients=[email],
-        body=f"Your OTP is: {otp}",
+        body=(
+            f"Your ESQUARE verification code is {otp}.\n\n"
+            "It expires in five minutes. If you did not request this code, "
+            "you can ignore this email."
+        ),
         subtype="plain"
     )
 

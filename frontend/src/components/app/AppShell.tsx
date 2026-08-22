@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import { SidebarProvider } from '@/components/ui/sidebar';
@@ -8,11 +8,25 @@ import { MobileTabBar } from '@/components/app/MobileTabBar';
 import { CommandPalette } from '@/components/app/CommandPalette';
 import { AnimatedPage } from '@/components/motion';
 import { useAuthStore } from '@/stores/authStore';
+import { Spinner } from '@/components/common/Loading';
 
 export default function AppShell() {
-  const { isAuthenticated, user } = useAuthStore();
+  const { initialize, initialized, isAuthenticated, user } = useAuthStore();
   const [searchOpen, setSearchOpen] = useState(false);
   const location = useLocation();
+
+  useEffect(() => {
+    void initialize();
+  }, [initialize]);
+
+  if (!initialized) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
+        <Spinner />
+        <span className="ml-2 text-sm">Opening your workspace…</span>
+      </div>
+    );
+  }
 
   if (!isAuthenticated || !user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
 
@@ -40,4 +54,3 @@ export default function AppShell() {
     </SidebarProvider>
   );
 }
-
