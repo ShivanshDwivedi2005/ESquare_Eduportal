@@ -30,6 +30,17 @@ def create_email_verification_token(email: str) -> str:
     )
 
 
+def create_google_selection_token(email: str, google_sub: str) -> str:
+    return create_token(
+        {
+            "sub": google_sub,
+            "email": email.strip().lower(),
+        },
+        timedelta(minutes=5),
+        "google_account_selection",
+    )
+
+
 def decode_token(token: str, expected_type: str | None = None):
     try:
         payload = jwt.decode(

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AtSign, Check, GraduationCap, Mail, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,7 +22,9 @@ export default function SignupPage() {
   const [step, setStep] = useState<'details' | 'verify'>('details');
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
+  const location = useLocation();
+  const googleEmail = (location.state as { emailFromGoogle?: string } | null)?.emailFromGoogle;
+  const [email, setEmail] = useState(googleEmail || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [otp, setOtp] = useState('');
@@ -128,6 +130,11 @@ export default function SignupPage() {
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   You’ll begin with the general workspace. Institution tools appear after an administrator approves your role.
                 </p>
+                {googleEmail && (
+                  <p className="mt-3 rounded-md bg-primary-soft px-3 py-2 text-xs text-primary">
+                    Google verified {googleEmail}. We’ll also email a one-time code before creating this account.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-5">

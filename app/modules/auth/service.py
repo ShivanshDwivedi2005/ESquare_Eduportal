@@ -5,7 +5,6 @@ from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException
 from google.auth.transport import requests
 from google.oauth2 import id_token
-from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -13,6 +12,7 @@ from app.common.email import send_email_otp
 from app.common.jwt import (
     create_access_token,
     create_email_verification_token,
+    create_google_selection_token,
     decode_token,
 )
 from app.common.otp import generate_otp, hash_otp, verify_otp_hash
@@ -128,9 +128,6 @@ def username_availability(username: str, db: Session) -> dict:
 
 async def send_otp_service(email: str, db: Session):
     normalized_email = _normalise_email(email)
-    if db.query(User.id).filter(User.email == normalized_email).first():
-        raise HTTPException(status_code=409, detail="An account already uses this email")
-
     now = _utcnow()
     latest_code = (
         db.query(OTPCode)
@@ -255,9 +252,6 @@ def signup_service(
             status_code=400, detail="Verify this email address before creating the account"
         )
 
-    if db.query(User.id).filter(User.email == email).first():
-        raise HTTPException(status_code=409, detail="An account already uses this email")
-
     if username_index.might_contain(username):
         if db.query(User.id).filter(User.username == username).first():
             raise HTTPException(status_code=409, detail="That username is already taken")
@@ -281,13 +275,7 @@ def signup_service(
         db.commit()
     except IntegrityError as exc:
         db.rollback()
-        conflict = db.query(User.id).filter(User.username == username).first()
-        detail = (
-            "That username is already taken"
-            if conflict
-            else "An account already uses this email"
-        )
-        raise HTTPException(status_code=409, detail=detail) from exc
+        raise HTTPException(status_code=409, detail="That username is already taken") from exc
 
     db.refresh(user)
     username_index.add(username)
@@ -301,18 +289,38 @@ def login_service(
     user_agent: str | None = None,
 ) -> tuple[dict, str]:
     normalized = identifier.strip().lower()
-    user = db.query(User).filter(
-        or_(User.email == normalized, User.username == normalized)
-    ).first()
+    if "@" not in normalized:
+        user = db.query(User).filter(User.username == normalized).first()
+        credential = (
+            db.query(PasswordCredential)
+            .filter(PasswordCredential.user_id == user.id)
+            .first()
+            if user
+            else None
+        )
+        matches = [user] if credential and verify_password(password, credential.password_hash) else []
+    else:
+        rows = (
+            db.query(User, PasswordCredential)
+            .join(PasswordCredential, PasswordCredential.user_id == User.id)
+            .filter(User.email == normalized)
+            .all()
+        )
+        matches = [
+            user
+            for user, credential in rows
+            if verify_password(password, credential.password_hash)
+        ]
 
-    if not user:
+    if not matches:
         raise HTTPException(status_code=401, detail="Email, username, or password is incorrect")
+    if len(matches) > 1:
+        raise HTTPException(
+            status_code=409,
+            detail="More than one account uses that email and password. Sign in with your username.",
+        )
 
-    credential = db.query(PasswordCredential).filter(
-        PasswordCredential.user_id == user.id
-    ).first()
-    if not credential or not verify_password(password, credential.password_hash):
-        raise HTTPException(status_code=401, detail="Email, username, or password is incorrect")
+    user = matches[0]
 
     refresh_token, _ = _create_refresh_session(db, user.id, user_agent)
     db.commit()
@@ -363,7 +371,7 @@ def google_login_service(
     token: str,
     db: Session,
     user_agent: str | None = None,
-) -> tuple[dict, str]:
+) -> tuple[dict, str | None]:
     try:
         idinfo = id_token.verify_oauth2_token(
             token, requests.Request(), settings.GOOGLE_CLIENT_ID
@@ -371,23 +379,80 @@ def google_login_service(
     except ValueError as exc:
         raise HTTPException(status_code=401, detail="Google sign-in failed") from exc
 
+    if not idinfo.get("email_verified"):
+        raise HTTPException(status_code=401, detail="Verify your Google email first")
+
     email = _normalise_email(idinfo["email"])
     google_sub = idinfo["sub"]
-    user = db.query(User).filter(User.email == email).first()
-    if not user:
-        raise HTTPException(
-            status_code=409,
-            detail="Create your ESQUARE account before connecting Google",
+    users = (
+        db.query(User)
+        .filter(User.email == email)
+        .order_by(User.created_at.asc(), User.username.asc())
+        .all()
+    )
+    if not users:
+        return {"status": "signup_required", "email": email}, None
+
+    if len(users) > 1:
+        return (
+            {
+                "status": "account_selection_required",
+                "selection_token": create_google_selection_token(email, google_sub),
+                "accounts": [
+                    {
+                        "public_id": _public_id(user),
+                        "display_name": user.display_name,
+                        "username": user.username,
+                    }
+                    for user in users
+                ],
+            },
+            None,
         )
 
-    account = db.query(GoogleAccount).filter(
-        GoogleAccount.google_sub == google_sub
-    ).first()
-    if account and account.user_id != user.id:
-        raise HTTPException(status_code=409, detail="Google account is already connected")
-    if not account:
+    user = users[0]
+    _connect_google_account(db, user, google_sub)
+
+    refresh_token, _ = _create_refresh_session(db, user.id, user_agent)
+    db.commit()
+    return _auth_result(db, user, refresh_token)
+
+
+def _connect_google_account(db: Session, user: User, google_sub: str) -> None:
+    connected = (
+        db.query(GoogleAccount.id)
+        .filter(
+            GoogleAccount.user_id == user.id,
+            GoogleAccount.google_sub == google_sub,
+        )
+        .first()
+    )
+    if not connected:
         db.add(GoogleAccount(user_id=user.id, google_sub=google_sub))
 
+
+def select_google_account_service(
+    selection_token: str,
+    username: str,
+    db: Session,
+    user_agent: str | None = None,
+) -> tuple[dict, str]:
+    selection = decode_token(selection_token, "google_account_selection")
+    if not selection or not selection.get("email") or not selection.get("sub"):
+        raise HTTPException(status_code=401, detail="Google account selection expired")
+
+    user = (
+        db.query(User)
+        .filter(
+            User.email == _normalise_email(selection["email"]),
+            User.username == normalize_username(username),
+        )
+        .first()
+    )
+    if not user:
+        raise HTTPException(status_code=401, detail="Google account selection is not valid")
+
+    _connect_google_account(db, user, selection["sub"])
     refresh_token, _ = _create_refresh_session(db, user.id, user_agent)
     db.commit()
     return _auth_result(db, user, refresh_token)

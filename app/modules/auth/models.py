@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from app.db.base import Base
@@ -38,7 +39,7 @@ class User(Base):
     )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    email = Column(String, unique=True, index=True, nullable=False)
+    email = Column(String, index=True, nullable=False)
     username = Column(String(50), nullable=False)
     display_name = Column(String(100), nullable=False)
     email_verified = Column(Boolean, default=False, nullable=False)
@@ -58,11 +59,19 @@ class PasswordCredential(Base):
 # GOOGLE LOGIN TABLE
 class GoogleAccount(Base):
     __tablename__ = "google_accounts"
-    __table_args__ = {"schema": "auth"}
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "google_sub",
+            name="uq_google_accounts_user_sub",
+        ),
+        Index("ix_google_accounts_google_sub", "google_sub"),
+        {"schema": "auth"},
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("auth.users.id"))
-    google_sub = Column(String, unique=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("auth.users.id"), nullable=False)
+    google_sub = Column(String, nullable=False)
 
 
 # OTP TABLE

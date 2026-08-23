@@ -19,6 +19,26 @@ type AuthResponse = {
   user: ApiUser;
 };
 
+export type GoogleAccountOption = {
+  public_id: string;
+  display_name: string;
+  username: string;
+};
+
+type GoogleBackendResponse = AuthResponse | {
+  status: 'account_selection_required';
+  selection_token: string;
+  accounts: GoogleAccountOption[];
+} | {
+  status: 'signup_required';
+  email: string;
+};
+
+export type GoogleLoginResult =
+  | { status: 'authenticated'; user: User }
+  | { status: 'account_selection_required'; selectionToken: string; accounts: GoogleAccountOption[] }
+  | { status: 'signup_required'; email: string };
+
 const knownRoles: UserRole[] = [
   'student', 'teacher', 'principal', 'admin', 'hr', 'finance',
   'admission', 'organization', 'public',
@@ -80,6 +100,29 @@ export const authApi = {
 
   async login(identifier: string, password: string) {
     const { data } = await api.post<AuthResponse>('/auth/login', { identifier, password });
+    return acceptAuth(data);
+  },
+
+  async googleLogin(token: string): Promise<GoogleLoginResult> {
+    const { data } = await api.post<GoogleBackendResponse>('/auth/google-login', { token });
+    if ('access_token' in data) {
+      return { status: 'authenticated', user: acceptAuth(data) };
+    }
+    if (data.status === 'account_selection_required') {
+      return {
+        status: data.status,
+        selectionToken: data.selection_token,
+        accounts: data.accounts,
+      };
+    }
+    return data;
+  },
+
+  async selectGoogleAccount(selectionToken: string, username: string) {
+    const { data } = await api.post<AuthResponse>('/auth/google-login/select', {
+      selection_token: selectionToken,
+      username,
+    });
     return acceptAuth(data);
   },
 

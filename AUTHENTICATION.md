@@ -40,5 +40,17 @@ The Bloom filter accelerates negative username lookups. A positive result is
 confirmed with PostgreSQL, and the unique database index is always the final
 authority during account creation.
 
+An email address may be used by more than one ESQUARE account. Password login
+accepts either a username or email address. When the same email and password
+match several accounts, the API asks the person to use a username so it never
+guesses which account they intended.
+
+Google Identity Services uses the same general accounts. One email match signs
+in directly, several matches return a short-lived account-selection token, and
+no match continues to the regular signup and email-code flow. Set the same Web
+OAuth client ID as `GOOGLE_CLIENT_ID` in the API and
+`VITE_GOOGLE_CLIENT_ID` in the frontend build environment. See
+`frontend/.env.example` for the frontend variables.
+
 Set `REFRESH_COOKIE_SECURE=true` in HTTPS deployments. Configure allowed web
 origins with the comma-separated `FRONTEND_ORIGINS` setting.

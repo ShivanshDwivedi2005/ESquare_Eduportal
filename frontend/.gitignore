@@ -15,6 +15,7 @@ dist-ssr
 # Environment variables, secrets, and credentials
 .env
 .env.*
+!.env.example
 .npmrc
 *.pem
 *.key

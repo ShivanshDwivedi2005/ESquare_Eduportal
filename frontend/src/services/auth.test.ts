@@ -62,4 +62,44 @@ describe('authApi', () => {
 
     expect(get).toHaveBeenCalledWith('/auth/usernames/aditi.sharma/availability');
   });
+
+  it('returns an account chooser when a Google email has several usernames', async () => {
+    post.mockResolvedValue({
+      data: {
+        status: 'account_selection_required',
+        selection_token: 'short-lived-selection-token',
+        accounts: [
+          {
+            public_id: 'ESQ-9F7DDDBC3354',
+            display_name: 'Aditi Sharma',
+            username: 'aditi.sharma',
+          },
+        ],
+      },
+    });
+
+    const result = await authApi.googleLogin('google-id-token');
+
+    expect(post).toHaveBeenCalledWith('/auth/google-login', { token: 'google-id-token' });
+    expect(result).toMatchObject({
+      status: 'account_selection_required',
+      selectionToken: 'short-lived-selection-token',
+    });
+    expect(setAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('accepts authentication after selecting a Google-linked username', async () => {
+    post.mockResolvedValue({
+      data: { access_token: 'access-token', token_type: 'bearer', user: apiUser },
+    });
+
+    const user = await authApi.selectGoogleAccount('selection-token', 'aditi.sharma');
+
+    expect(post).toHaveBeenCalledWith('/auth/google-login/select', {
+      selection_token: 'selection-token',
+      username: 'aditi.sharma',
+    });
+    expect(setAccessToken).toHaveBeenCalledWith('access-token');
+    expect(user.username).toBe('aditi.sharma');
+  });
 });

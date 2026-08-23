@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { authApi } from '@/services/auth';
+import type { GoogleLoginResult } from '@/services/auth';
 import type { User } from '@/types';
 
 interface SignupInput {
@@ -18,6 +19,8 @@ interface AuthState {
   onboarded: boolean;
   initialize: () => Promise<void>;
   login: (identifier: string, password: string) => Promise<User>;
+  googleLogin: (token: string) => Promise<GoogleLoginResult>;
+  selectGoogleAccount: (selectionToken: string, username: string) => Promise<User>;
   signup: (input: SignupInput) => Promise<User>;
   logout: () => Promise<void>;
   setUser: (user: User) => void;
@@ -44,6 +47,20 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (identifier, password) => {
         const user = await authApi.login(identifier, password);
+        set({ user, isAuthenticated: true, initialized: true });
+        return user;
+      },
+
+      googleLogin: async (token) => {
+        const result = await authApi.googleLogin(token);
+        if (result.status === 'authenticated') {
+          set({ user: result.user, isAuthenticated: true, initialized: true });
+        }
+        return result;
+      },
+
+      selectGoogleAccount: async (selectionToken, username) => {
+        const user = await authApi.selectGoogleAccount(selectionToken, username);
         set({ user, isAuthenticated: true, initialized: true });
         return user;
       },

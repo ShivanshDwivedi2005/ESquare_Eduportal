@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.modules.auth.username import validate_username
@@ -43,6 +45,16 @@ class GoogleLoginRequest(BaseModel):
     token: str
 
 
+class GoogleAccountSelectionRequest(BaseModel):
+    selection_token: str
+    username: str
+
+    @field_validator("username")
+    @classmethod
+    def clean_username(cls, value: str) -> str:
+        return validate_username(value)
+
+
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -61,6 +73,23 @@ class AuthResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+
+class GoogleAccountSummary(BaseModel):
+    public_id: str
+    display_name: str
+    username: str
+
+
+class GoogleAccountSelectionResponse(BaseModel):
+    status: Literal["account_selection_required"]
+    selection_token: str
+    accounts: list[GoogleAccountSummary]
+
+
+class GoogleSignupRequiredResponse(BaseModel):
+    status: Literal["signup_required"]
+    email: EmailStr
 
 
 class UsernameAvailabilityResponse(BaseModel):

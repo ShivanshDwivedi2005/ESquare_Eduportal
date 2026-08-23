@@ -7,7 +7,10 @@ from app.dependencies.database import get_db
 from app.modules.auth.models import User
 from app.modules.auth.schemas import (
     AuthResponse,
+    GoogleAccountSelectionRequest,
+    GoogleAccountSelectionResponse,
     GoogleLoginRequest,
+    GoogleSignupRequiredResponse,
     LoginRequest,
     MessageResponse,
     SendOTPRequest,
@@ -22,6 +25,7 @@ from app.modules.auth.service import (
     login_service,
     logout_service,
     refresh_service,
+    select_google_account_service,
     send_otp_service,
     signup_service,
     user_payload,
@@ -138,7 +142,10 @@ def me(
     return user_payload(db, current_user)
 
 
-@router.post("/google-login", response_model=AuthResponse)
+@router.post(
+    "/google-login",
+    response_model=AuthResponse | GoogleAccountSelectionResponse | GoogleSignupRequiredResponse,
+)
 def google_login(
     data: GoogleLoginRequest,
     request: Request,
@@ -147,6 +154,24 @@ def google_login(
 ):
     payload, refresh_token = google_login_service(
         data.token, db, _user_agent(request)
+    )
+    if refresh_token:
+        _set_refresh_cookie(response, refresh_token)
+    return payload
+
+
+@router.post("/google-login/select", response_model=AuthResponse)
+def select_google_account(
+    data: GoogleAccountSelectionRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    payload, refresh_token = select_google_account_service(
+        data.selection_token,
+        data.username,
+        db,
+        _user_agent(request),
     )
     _set_refresh_cookie(response, refresh_token)
     return payload
