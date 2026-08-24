@@ -13,6 +13,8 @@ venv/
 .env.*
 **/.env
 **/.env.*
+!.env.example
+!**/.env.example
 
 # Secrets and credentials
 .npmrc
@@ -56,6 +58,9 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+
+# Local architecture and implementation notes (never publish)
+/documentation/
 
 # Node
 node_modules/
