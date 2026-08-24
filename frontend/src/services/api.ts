@@ -38,7 +38,7 @@ api.interceptors.response.use(
         refreshRequest ??= refreshClient
           .post('/auth/refresh')
           .then((response) => {
-            const token = response.data.access_token as string;
+            const token = response.data.accessToken as string;
             setAccessToken(token);
             return token;
           })

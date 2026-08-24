@@ -10,6 +10,8 @@ import { ApplicationError } from "./common/errors.js";
 import { requestContext } from "./common/request-context.js";
 import { corsOrigins, getEnvironment } from "./config/env.js";
 import { database } from "./database/client.js";
+import { authenticationPlugin } from "./middleware/authentication.js";
+import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
 
 export async function buildApplication(): Promise<FastifyInstance> {
   const environment = getEnvironment();
@@ -25,7 +27,8 @@ export async function buildApplication(): Promise<FastifyInstance> {
           "req.headers.cookie",
           "request.body.password",
           "request.body.token",
-          "response.headers.set-cookie",
+          "request.body.code",
+          "response.headers['set-cookie']",
         ],
         censor: "[REDACTED]",
       },
@@ -44,9 +47,11 @@ export async function buildApplication(): Promise<FastifyInstance> {
     max: 300,
     timeWindow: "1 minute",
   });
+  await application.register(authenticationPlugin);
 
-  application.addHook("onRequest", async (request) => {
+  application.addHook("onRequest", async (request, reply) => {
     requestContext.enterWith({ requestId: request.id });
+    reply.header("x-request-id", request.id);
   });
 
   application.get("/health/live", async () => ({ status: "ok" }));
@@ -54,6 +59,8 @@ export async function buildApplication(): Promise<FastifyInstance> {
     await database.$queryRaw`SELECT 1`;
     return reply.send({ status: "ready" });
   });
+
+  await registerAuthRoutes(application);
 
   application.setErrorHandler((error, request, reply) => {
     if (error instanceof ApplicationError) {
