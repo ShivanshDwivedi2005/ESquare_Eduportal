@@ -4,7 +4,8 @@ import cookie from "@fastify/cookie";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
-import Fastify, { type FastifyInstance } from "fastify";
+import { Prisma } from "@prisma/client";
+import Fastify, { LogController, type FastifyInstance } from "fastify";
 
 import { ApplicationError } from "./common/errors.js";
 import { requestContext } from "./common/request-context.js";
@@ -17,12 +18,12 @@ import { registerInstitutionRoutes } from "./modules/institutions/institution.ro
 import { registerAcademicRoutes } from "./modules/academics/academic.routes.js";
 import { registerInvitationRoutes } from "./modules/invitations/invitation.routes.js";
 import { registerOnboardingRoutes } from "./modules/onboarding/onboarding.routes.js";
+import { registerAuditRoutes } from "./modules/audit/audit.routes.js";
 
 export async function buildApplication(): Promise<FastifyInstance> {
   const environment = getEnvironment();
   const application = Fastify({
     bodyLimit: 1_048_576,
-    disableRequestLogging: environment.NODE_ENV === "test",
     genReqId: () => randomUUID(),
     logger: {
       level: environment.NODE_ENV === "production" ? "info" : "debug",
@@ -38,6 +39,9 @@ export async function buildApplication(): Promise<FastifyInstance> {
         censor: "[REDACTED]",
       },
     },
+    logController: new LogController({
+      disableRequestLogging: environment.NODE_ENV === "test",
+    }),
     trustProxy: environment.TRUST_PROXY,
   });
 
@@ -57,6 +61,13 @@ export async function buildApplication(): Promise<FastifyInstance> {
   application.addHook("onRequest", async (request, reply) => {
     requestContext.enterWith({ requestId: request.id });
     reply.header("x-request-id", request.id);
+    if (
+      environment.NODE_ENV === "production" &&
+      request.protocol !== "https" &&
+      !request.url.startsWith("/health/")
+    ) {
+      throw new ApplicationError(400, "HTTPS_REQUIRED", "HTTPS is required");
+    }
   });
 
   application.get("/health/live", async () => ({ status: "ok" }));
@@ -71,6 +82,7 @@ export async function buildApplication(): Promise<FastifyInstance> {
   await registerAcademicRoutes(application);
   await registerInvitationRoutes(application);
   await registerOnboardingRoutes(application);
+  await registerAuditRoutes(application);
 
   application.setErrorHandler((error, request, reply) => {
     if (error instanceof ApplicationError) {
@@ -90,6 +102,38 @@ export async function buildApplication(): Promise<FastifyInstance> {
       });
     }
 
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      const mapping: Record<string, { status: number; code: string; message: string }> = {
+        P2002: {
+          status: 409,
+          code: "RESOURCE_CONFLICT",
+          message: "A conflicting record already exists",
+        },
+        P2003: {
+          status: 422,
+          code: "INVALID_REFERENCE",
+          message: "A referenced record is invalid",
+        },
+        P2025: {
+          status: 404,
+          code: "RESOURCE_NOT_FOUND",
+          message: "Resource not found",
+        },
+        P2034: {
+          status: 409,
+          code: "TRANSACTION_CONFLICT",
+          message: "The request conflicted with another update",
+        },
+      };
+      const response = mapping[error.code];
+      if (response) {
+        return reply.status(response.status).send({
+          error: { code: response.code, message: response.message },
+          requestId: request.id,
+        });
+      }
+    }
+
     request.log.error({ error }, "Unhandled request error");
     return reply.status(500).send({
       error: {
@@ -97,7 +141,9 @@ export async function buildApplication(): Promise<FastifyInstance> {
         message:
           environment.NODE_ENV === "production"
             ? "The request could not be completed"
-            : error.message,
+            : error instanceof Error
+              ? error.message
+              : "Unknown error",
       },
       requestId: request.id,
     });

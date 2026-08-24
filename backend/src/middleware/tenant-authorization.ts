@@ -61,37 +61,44 @@ export async function resolveInstitutionMembership(request: FastifyRequest): Pro
   }
 }
 
+async function recordPermissionDenial(
+  request: FastifyRequest,
+  permissions: readonly PermissionCode[],
+): Promise<void> {
+  const access = request.institutionAccess;
+  if (!access || !request.authUser) return;
+  try {
+    await withTenantTransaction(
+      { userId: request.authUser.userId, institutionId: access.institutionId },
+      (transaction) =>
+        writeAuditLog(
+          transaction,
+          {
+            actorUserId: request.authUser!.userId,
+            actorMembershipId: access.membershipId,
+            institutionId: access.institutionId,
+            ipAddress: request.ip,
+            userAgent: request.headers["user-agent"],
+          },
+          {
+            action: "permission.denied",
+            entityType: "institution",
+            entityId: access.institutionId,
+            metadata: { permissions },
+          },
+        ),
+    );
+  } catch (error) {
+    request.log.error({ error, permissions }, "Failed to persist permission denial audit");
+  }
+}
+
 export function requirePermission(permission: PermissionCode) {
   return async function permissionAuthorization(request: FastifyRequest): Promise<void> {
     const access = request.institutionAccess;
     if (access?.permissionCodes.includes(permission)) return;
 
-    if (access && request.authUser) {
-      try {
-        await withTenantTransaction(
-          { userId: request.authUser.userId, institutionId: access.institutionId },
-          (transaction) =>
-            writeAuditLog(
-              transaction,
-              {
-                actorUserId: request.authUser!.userId,
-                actorMembershipId: access.membershipId,
-                institutionId: access.institutionId,
-                ipAddress: request.ip,
-                userAgent: request.headers["user-agent"],
-              },
-              {
-                action: "permission.denied",
-                entityType: "institution",
-                entityId: access.institutionId,
-                metadata: { permission },
-              },
-            ),
-        );
-      } catch (error) {
-        request.log.error({ error, permission }, "Failed to persist permission denial audit");
-      }
-    }
+    await recordPermissionDenial(request, [permission]);
     throw new ApplicationError(403, "PERMISSION_DENIED", "Permission denied");
   };
 }
@@ -102,6 +109,7 @@ export function requireAnyPermission(permissions: readonly PermissionCode[]) {
     if (access && permissions.some((permission) => access.permissionCodes.includes(permission))) {
       return;
     }
+    await recordPermissionDenial(request, permissions);
     throw new ApplicationError(403, "PERMISSION_DENIED", "Permission denied");
   };
 }
