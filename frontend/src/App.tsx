@@ -12,6 +12,7 @@ import LoginPage from "./pages/Login";
 import SignupPage from "./pages/Signup";
 import ForgotPasswordPage from "./pages/ForgotPassword";
 import ResetPasswordPage from "./pages/ResetPassword";
+import JoinPage from "./pages/Join";
 import NotFound from "./pages/NotFound";
 
 import Dashboard from "./pages/app/Dashboard";
@@ -64,6 +65,7 @@ const App = () => (
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/join" element={<JoinPage />} />
 
             <Route element={<AppShell />}>
               <Route path="/app" element={<WorkspaceHome />} />

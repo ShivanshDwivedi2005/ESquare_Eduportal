@@ -96,6 +96,16 @@ export function requirePermission(permission: PermissionCode) {
   };
 }
 
+export function requireAnyPermission(permissions: readonly PermissionCode[]) {
+  return async function anyPermissionAuthorization(request: FastifyRequest): Promise<void> {
+    const access = request.institutionAccess;
+    if (access && permissions.some((permission) => access.permissionCodes.includes(permission))) {
+      return;
+    }
+    throw new ApplicationError(403, "PERMISSION_DENIED", "Permission denied");
+  };
+}
+
 export function institutionAccess(request: FastifyRequest) {
   if (!request.institutionAccess) {
     throw new ApplicationError(403, "PERMISSION_DENIED", "Permission denied");

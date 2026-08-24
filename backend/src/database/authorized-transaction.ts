@@ -45,3 +45,24 @@ export async function withPlatformTransaction<T>(
     { isolationLevel, maxWait: 5_000, timeout: 20_000 },
   );
 }
+
+export async function withInvitationTransaction<T>(
+  tokenHash: string,
+  userId: string | null,
+  operation: (transaction: Prisma.TransactionClient) => Promise<T>,
+  client: PrismaClient = database,
+): Promise<T> {
+  return client.$transaction(
+    async (transaction) => {
+      await transaction.$queryRaw`
+        SELECT
+          set_config('app.current_user_id', ${userId ?? ""}, true),
+          set_config('app.current_institution_id', '', true),
+          set_config('app.platform_access', 'false', true),
+          set_config('app.invitation_token_hash', ${tokenHash}, true)
+      `;
+      return operation(transaction);
+    },
+    { isolationLevel: "Serializable", maxWait: 5_000, timeout: 20_000 },
+  );
+}

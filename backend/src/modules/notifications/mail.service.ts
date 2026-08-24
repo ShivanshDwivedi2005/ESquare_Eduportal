@@ -6,6 +6,12 @@ import { getEnvironment } from "../../config/env.js";
 export interface MailService {
   sendEmailVerification(email: string, code: string): Promise<void>;
   sendPasswordReset(email: string, token: string): Promise<void>;
+  sendInvitation(
+    email: string,
+    token: string,
+    institutionName: string,
+    invitationType: string,
+  ): Promise<void>;
 }
 
 class SmtpMailService implements MailService {
@@ -46,6 +52,22 @@ class SmtpMailService implements MailService {
       text: `Open this one-time link to reset your ESQUARE password: ${resetUrl}`,
     });
   }
+
+  public async sendInvitation(
+    email: string,
+    token: string,
+    institutionName: string,
+    invitationType: string,
+  ): Promise<void> {
+    const { APP_BASE_URL } = getEnvironment();
+    const invitationUrl = `${APP_BASE_URL}/join?t=${encodeURIComponent(token)}`;
+    await this.transporter.sendMail({
+      from: this.from,
+      to: email,
+      subject: `Join ${institutionName} on ESQUARE`,
+      text: `${institutionName} invited you as ${invitationType.toLowerCase()}. Open this single-use link before it expires: ${invitationUrl}`,
+    });
+  }
 }
 
 class UnconfiguredMailService implements MailService {
@@ -62,6 +84,10 @@ class UnconfiguredMailService implements MailService {
   }
 
   public sendPasswordReset(): Promise<void> {
+    return Promise.reject(this.unavailable());
+  }
+
+  public sendInvitation(): Promise<void> {
     return Promise.reject(this.unavailable());
   }
 }

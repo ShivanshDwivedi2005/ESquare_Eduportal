@@ -14,6 +14,9 @@ import { authenticationPlugin } from "./middleware/authentication.js";
 import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
 import { registerInstitutionRequestRoutes } from "./modules/institution-requests/institution-request.routes.js";
 import { registerInstitutionRoutes } from "./modules/institutions/institution.routes.js";
+import { registerAcademicRoutes } from "./modules/academics/academic.routes.js";
+import { registerInvitationRoutes } from "./modules/invitations/invitation.routes.js";
+import { registerOnboardingRoutes } from "./modules/onboarding/onboarding.routes.js";
 
 export async function buildApplication(): Promise<FastifyInstance> {
   const environment = getEnvironment();
@@ -65,6 +68,9 @@ export async function buildApplication(): Promise<FastifyInstance> {
   await registerAuthRoutes(application);
   await registerInstitutionRequestRoutes(application);
   await registerInstitutionRoutes(application);
+  await registerAcademicRoutes(application);
+  await registerInvitationRoutes(application);
+  await registerOnboardingRoutes(application);
 
   application.setErrorHandler((error, request, reply) => {
     if (error instanceof ApplicationError) {
