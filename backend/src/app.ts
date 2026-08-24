@@ -12,6 +12,8 @@ import { corsOrigins, getEnvironment } from "./config/env.js";
 import { database } from "./database/client.js";
 import { authenticationPlugin } from "./middleware/authentication.js";
 import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
+import { registerInstitutionRequestRoutes } from "./modules/institution-requests/institution-request.routes.js";
+import { registerInstitutionRoutes } from "./modules/institutions/institution.routes.js";
 
 export async function buildApplication(): Promise<FastifyInstance> {
   const environment = getEnvironment();
@@ -61,11 +63,16 @@ export async function buildApplication(): Promise<FastifyInstance> {
   });
 
   await registerAuthRoutes(application);
+  await registerInstitutionRequestRoutes(application);
+  await registerInstitutionRoutes(application);
 
   application.setErrorHandler((error, request, reply) => {
     if (error instanceof ApplicationError) {
       return reply.status(error.statusCode).send({
-        error: { code: error.code, message: error.message },
+        error: {
+          code: error.code,
+          message: error.expose ? error.message : "The request could not be completed",
+        },
         requestId: request.id,
       });
     }

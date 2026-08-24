@@ -4,6 +4,7 @@ import { PlatformRole, Prisma, PrismaClient, UserStatus } from "@prisma/client";
 import {
   PERMISSION_CODES,
   type PermissionCode,
+  ROLE_PERMISSION_GRANTS,
   ROLE_CODES,
   type RoleCode,
 } from "../src/security/authorization-catalog.js";
@@ -67,37 +68,6 @@ const permissionDescriptions: Record<PermissionCode, string> = {
   AUDIT_VIEW: "View institution audit history.",
 };
 
-const rolePermissions: Record<RoleCode, readonly PermissionCode[]> = {
-  ROOT_ADMIN: PERMISSION_CODES,
-  ADMISSION_ADMIN: [
-    "INSTITUTION_VIEW",
-    "STUDENT_CREATE",
-    "STUDENT_VIEW",
-    "STUDENT_UPDATE",
-    "TEACHER_CREATE",
-    "TEACHER_VIEW",
-    "TEACHER_UPDATE",
-    "STAFF_CREATE",
-    "STAFF_VIEW",
-    "STAFF_UPDATE",
-    "ADMISSION_INVITE_SEND",
-    "ADMISSION_INVITE_RESEND",
-    "ADMISSION_INVITE_REVOKE",
-  ],
-  FINANCE_ADMIN: ["INSTITUTION_VIEW", "FINANCE_VIEW", "FINANCE_MANAGE"],
-  PRINCIPAL: [
-    "INSTITUTION_VIEW",
-    "STUDENT_VIEW",
-    "TEACHER_VIEW",
-    "STAFF_VIEW",
-    "ACADEMIC_SESSION_MANAGE",
-    "CLASS_SECTION_MANAGE",
-  ],
-  TEACHER: ["INSTITUTION_VIEW", "STUDENT_VIEW"],
-  STUDENT: ["INSTITUTION_VIEW"],
-  STAFF: ["INSTITUTION_VIEW"],
-};
-
 function stableUuid(kind: "role" | "permission", index: number): string {
   const family = kind === "role" ? "4000" : "4001";
   return `00000000-0000-${family}-8000-${String(index + 1).padStart(12, "0")}`;
@@ -131,7 +101,7 @@ async function seedAuthorizationCatalog(client: Prisma.TransactionClient): Promi
 
     await client.rolePermission.deleteMany({ where: { roleId: role.roleId } });
     await client.rolePermission.createMany({
-      data: rolePermissions[roleCode].map((permissionCode) => ({
+      data: ROLE_PERMISSION_GRANTS[roleCode].map((permissionCode) => ({
         roleId: role.roleId,
         permissionId: permissions.get(permissionCode)!,
       })),

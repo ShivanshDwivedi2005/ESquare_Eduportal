@@ -10,6 +10,8 @@ import { verifyAccessToken } from "../security/access-token.js";
 
 export const authenticationPlugin = fp(async (application) => {
   application.decorateRequest("authUser", null);
+  application.decorateRequest("institutionAccess", null);
+  application.decorateRequest("platformRoles", null);
 });
 
 export async function authenticateRequest(request: FastifyRequest): Promise<void> {
