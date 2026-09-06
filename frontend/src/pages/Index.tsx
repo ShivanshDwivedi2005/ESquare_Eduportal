@@ -12,6 +12,7 @@ import {
   AnimatedGradientText, AnimatedGridPattern, BlurFade, BorderBeam, DotPattern, Marquee, NumberTicker,
   ShimmerButton, SpotlightCard,
 } from '@/components/magic';
+import { FloatingElement, ParallaxLayer } from '@/components/motion';
 
 const modules = [
   { icon: ClipboardList, title: 'Academic operations', body: 'Attendance, marks, timetables and class materials in one auditable record for every student and teacher.' },
@@ -51,9 +52,14 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-background">
-      <motion.div style={{ scaleX: progress }} className="fixed inset-x-0 top-0 z-50 h-0.5 origin-left bg-primary" />
+      {!reduced && <motion.div style={{ scaleX: progress }} className="fixed inset-x-0 top-0 z-50 h-0.5 origin-left bg-primary" />}
 
-      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
+      <motion.header
+        initial={reduced ? false : { opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl"
+      >
         <div className="container flex h-16 items-center justify-between gap-4">
           <Link to="/" className="flex items-center gap-2.5">
             <motion.span
@@ -66,9 +72,9 @@ export default function Index() {
             <span className="font-display text-lg font-extrabold tracking-tight">ESQUARE</span>
           </Link>
           <nav className="hidden items-center gap-7 text-sm font-medium text-muted-foreground md:flex">
-            <a href="#modules" className="transition-colors hover:text-foreground">Platform</a>
-            <a href="#roles" className="transition-colors hover:text-foreground">Roles</a>
-            <a href="#network" className="transition-colors hover:text-foreground">Network</a>
+            <a href="#modules" className="nav-link">Platform</a>
+            <a href="#roles" className="nav-link">Roles</a>
+            <a href="#network" className="nav-link">Network</a>
           </nav>
           <div className="flex items-center gap-2">
             <ThemeToggle />
@@ -76,15 +82,26 @@ export default function Index() {
             <Button asChild className="hidden sm:inline-flex"><Link to="/signup">Get started</Link></Button>
           </div>
         </div>
-      </header>
+      </motion.header>
 
       <main>
         {/* ------------------------------- Hero ------------------------------- */}
-        <section className="relative overflow-hidden border-b border-border">
+        <section className="relative isolate overflow-hidden border-b border-border">
           <div className="pointer-events-none absolute inset-0 -z-10">
-            <AnimatedGridPattern className="[mask-image:radial-gradient(60%_60%_at_50%_0%,black,transparent)] opacity-70" />
-            <div className="absolute inset-x-0 -top-40 h-[520px] aurora opacity-70" />
+            <ParallaxLayer className="absolute inset-0" distance={24}>
+              <AnimatedGridPattern className="[mask-image:radial-gradient(60%_60%_at_50%_0%,black,transparent)] opacity-70" />
+            </ParallaxLayer>
+            <ParallaxLayer className="absolute inset-x-0 -top-44 h-[560px]" distance={52}>
+              <div className="absolute inset-0 aurora opacity-70" />
+            </ParallaxLayer>
           </div>
+
+          <FloatingElement className="absolute left-[4%] top-40 z-10 hidden xl:block" distance={9} durationSeconds={6.5}>
+            <div className="floating-pill"><ShieldCheck className="h-4 w-4 text-primary" /> Verified learning record</div>
+          </FloatingElement>
+          <FloatingElement className="absolute right-[5%] top-64 z-10 hidden xl:block" distance={11} durationSeconds={7.2} delay={0.8}>
+            <div className="floating-pill"><Trophy className="h-4 w-4 text-primary" /> Projects become proof</div>
+          </FloatingElement>
 
           <div className="container py-20 text-center md:py-28">
             <motion.div
@@ -129,7 +146,7 @@ export default function Index() {
               transition={{ duration: 0.6, delay: 0.45, ease: [0.16, 1, 0.3, 1] }}
             >
               <Link to="/signup">
-                <ShimmerButton>Create your account <ArrowRight className="h-4 w-4" /></ShimmerButton>
+                <ShimmerButton>Create your account <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" /></ShimmerButton>
               </Link>
               <Button size="lg" variant="secondary" className="rounded-full" asChild>
                 <Link to="/signup?role=admin">Register your institute</Link>
@@ -255,7 +272,7 @@ export default function Index() {
             </BlurFade>
 
             <BlurFade delay={0.15}>
-              <div className="surface-card relative overflow-hidden p-6">
+              <SpotlightCard className="surface-card relative overflow-hidden p-6">
                 <BorderBeam duration={10} />
                 <div className="flex items-center justify-between border-b border-border pb-4">
                   <div>
@@ -280,21 +297,23 @@ export default function Index() {
                   <p className="text-muted-foreground">Applied to Junior Robotics Intern at Nimbus Labs</p>
                   <p className="text-muted-foreground">Registered for BuildFest 2026</p>
                 </div>
-              </div>
+              </SpotlightCard>
             </BlurFade>
           </div>
         </section>
 
         {/* -------------------------------- CTA ------------------------------- */}
         <section className="relative overflow-hidden border-t border-border bg-surface-muted py-20">
-          <div className="pointer-events-none absolute inset-0 aurora opacity-50" />
+          <ParallaxLayer className="pointer-events-none absolute inset-0" distance={28}>
+            <div className="absolute inset-0 aurora opacity-50" />
+          </ParallaxLayer>
           <BlurFade className="container relative text-center">
             <h2 className="text-3xl font-bold tracking-tight md:text-4xl">Bring your school onto ESQUARE</h2>
             <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
               Set up departments, invite teachers and give every student a verified profile in a single onboarding flow.
             </p>
             <div className="mt-7 flex justify-center">
-              <Link to="/signup"><ShimmerButton>Get started <ArrowRight className="h-4 w-4" /></ShimmerButton></Link>
+              <Link to="/signup"><ShimmerButton>Get started <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" /></ShimmerButton></Link>
             </div>
           </BlurFade>
         </section>

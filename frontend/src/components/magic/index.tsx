@@ -1,5 +1,7 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { motion, useInView, useMotionValue, useReducedMotion, useSpring, useTransform } from 'framer-motion';
+import { useEffect, useId, useMemo, useRef } from 'react';
+import {
+  motion, useInView, useMotionTemplate, useMotionValue, useReducedMotion, useSpring, useTransform,
+} from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 /* ------------------------------ AnimatedGrid ------------------------------ */
@@ -180,29 +182,38 @@ export function Marquee({
 
 /* --------------------------------- Spotlight ------------------------------ */
 
-export function SpotlightCard({ children, className }: { children: React.ReactNode; className?: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ x: 50, y: 0, on: false });
+export function SpotlightCard({
+  children, className, tilt = true,
+}: { children: React.ReactNode; className?: string; tilt?: boolean }) {
+  const reduced = useReducedMotion();
+  const x = useMotionValue(50);
+  const y = useMotionValue(50);
+  const glow = useMotionValue(0);
+  const rotateXTarget = useTransform(y, [0, 100], [1.6, -1.6]);
+  const rotateYTarget = useTransform(x, [0, 100], [-1.8, 1.8]);
+  const rotateX = useSpring(rotateXTarget, { stiffness: 260, damping: 28 });
+  const rotateY = useSpring(rotateYTarget, { stiffness: 260, damping: 28 });
+  const spotlight = useMotionTemplate`radial-gradient(320px circle at ${x}% ${y}%, hsl(var(--primary) / ${glow}), transparent 72%)`;
 
   return (
-    <div
-      ref={ref}
-      onMouseMove={(e) => {
-        const r = ref.current?.getBoundingClientRect();
-        if (!r) return;
-        setPos({ x: ((e.clientX - r.left) / r.width) * 100, y: ((e.clientY - r.top) / r.height) * 100, on: true });
+    <motion.div
+      onPointerMove={(event) => {
+        if (reduced || event.pointerType !== 'mouse') return;
+        const bounds = event.currentTarget.getBoundingClientRect();
+        x.set(((event.clientX - bounds.left) / bounds.width) * 100);
+        y.set(((event.clientY - bounds.top) / bounds.height) * 100);
+        glow.set(0.13);
       }}
-      onMouseLeave={() => setPos((p) => ({ ...p, on: false }))}
-      className={cn('relative overflow-hidden', className)}
+      onPointerLeave={() => {
+        x.set(50);
+        y.set(50);
+        glow.set(0);
+      }}
+      className={cn('relative overflow-hidden [transform-style:preserve-3d]', className)}
+      style={reduced || !tilt ? undefined : { rotateX, rotateY, transformPerspective: 900 }}
     >
-      <div
-        className="pointer-events-none absolute inset-0 transition-opacity duration-300"
-        style={{
-          opacity: pos.on ? 1 : 0,
-          background: `radial-gradient(300px circle at ${pos.x}% ${pos.y}%, hsl(var(--primary) / 0.12), transparent 70%)`,
-        }}
-      />
+      <motion.div className="pointer-events-none absolute inset-0" style={{ background: spotlight }} />
       <div className="relative">{children}</div>
-    </div>
+    </motion.div>
   );
 }

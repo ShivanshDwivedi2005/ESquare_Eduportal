@@ -119,6 +119,7 @@
   }
   html {
     -webkit-font-smoothing: antialiased;
+    position: relative;
   }
   body {
     @apply bg-background text-foreground font-sans;
@@ -141,6 +142,20 @@
   }
   .grid-bento {
     @apply grid grid-cols-1 gap-4 lg:grid-cols-6;
+  }
+  .nav-link {
+    @apply relative py-2 transition-colors duration-200 hover:text-foreground;
+  }
+  .nav-link::after {
+    content: '';
+    @apply absolute inset-x-0 bottom-0 h-px origin-left scale-x-0 bg-primary transition-transform duration-300;
+  }
+  .nav-link:hover::after,
+  .nav-link:focus-visible::after {
+    @apply scale-x-100;
+  }
+  .floating-pill {
+    @apply flex items-center gap-2 rounded-full border border-border/80 bg-background/80 px-4 py-2 text-xs font-semibold text-foreground shadow-[var(--shadow-md)] backdrop-blur-xl;
   }
 }
 

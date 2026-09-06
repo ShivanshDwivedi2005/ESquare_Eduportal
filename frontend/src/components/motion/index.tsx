@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useRef, useState } from 'react';
 import {
-  HTMLMotionProps, motion, useInView, useMotionValue, useReducedMotion, useSpring, useTransform,
+  HTMLMotionProps, motion, useInView, useMotionValue, useReducedMotion, useScroll, useSpring, useTransform,
 } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import {
@@ -189,6 +189,54 @@ export function Reveal({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-80px' }}
       transition={{ duration: duration.large, ease: ease.out, delay }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/* ---------------------- Scroll-linked decorative depth -------------------- */
+
+export function ParallaxLayer({
+  children, className, distance = 36,
+}: { children: React.ReactNode; className?: string; distance?: number }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const reduced = useReducedMotion();
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] });
+  const rawY = useTransform(scrollYProgress, [0, 1], [-distance, distance]);
+  const y = useSpring(rawY, { stiffness: 90, damping: 28, mass: 0.55 });
+
+  return (
+    <motion.div
+      ref={ref}
+      aria-hidden="true"
+      className={className}
+      style={reduced ? undefined : { y }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+/* -------------------------- Ambient floating detail ----------------------- */
+
+export function FloatingElement({
+  children, className, distance = 8, durationSeconds = 6, delay = 0,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  distance?: number;
+  durationSeconds?: number;
+  delay?: number;
+}) {
+  const reduced = useReducedMotion();
+
+  return (
+    <motion.div
+      aria-hidden="true"
+      className={className}
+      animate={reduced ? undefined : { y: [0, -distance, 0], rotate: [0, -0.8, 0.5, 0] }}
+      transition={{ duration: durationSeconds, delay, repeat: Infinity, ease: 'easeInOut' }}
     >
       {children}
     </motion.div>
