@@ -10,6 +10,7 @@ interface AuthState {
   onboarded: boolean;
   initialize: () => Promise<void>;
   login: (email: string, password: string) => Promise<User>;
+  loginWithGoogle: (credential: string) => Promise<User>;
   logout: () => Promise<void>;
   setUser: (user: User) => void;
   completeOnboarding: () => void;
@@ -35,6 +36,12 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (email, password) => {
         const user = await authApi.login(email, password);
+        set({ user, isAuthenticated: true, initialized: true });
+        return user;
+      },
+
+      loginWithGoogle: async (credential) => {
+        const user = await authApi.loginWithGoogle(credential);
         set({ user, isAuthenticated: true, initialized: true });
         return user;
       },

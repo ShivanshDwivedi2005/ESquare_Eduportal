@@ -149,7 +149,7 @@ export default function Index() {
                 <ShimmerButton>Create your account <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" /></ShimmerButton>
               </Link>
               <Button size="lg" variant="secondary" className="rounded-full" asChild>
-                <Link to="/signup?role=admin">Register your institute</Link>
+                <Link to="/school-registration">Register your institute</Link>
               </Button>
               <Button size="lg" variant="outline" className="rounded-full" asChild>
                 <Link to="/login">Explore a role workspace</Link>
@@ -313,7 +313,7 @@ export default function Index() {
               Set up departments, invite teachers and give every student a verified profile in a single onboarding flow.
             </p>
             <div className="mt-7 flex justify-center">
-              <Link to="/signup"><ShimmerButton>Get started <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" /></ShimmerButton></Link>
+              <Link to="/school-registration"><ShimmerButton>Register your school <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" /></ShimmerButton></Link>
             </div>
           </BlurFade>
         </section>

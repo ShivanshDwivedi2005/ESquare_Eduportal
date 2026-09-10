@@ -59,6 +59,26 @@ export class InstitutionRequestService {
     }
 
     return this.repository.transaction(async (transaction) => {
+      const activeRequest = await transaction.institutionRegistrationRequest.findFirst({
+        where: {
+          submittedByUserId: actor.userId,
+          status: {
+            in: [
+              RegistrationRequestStatus.PENDING,
+              RegistrationRequestStatus.UNDER_REVIEW,
+            ],
+          },
+        },
+        select: { requestId: true },
+      });
+      if (activeRequest) {
+        throw new ApplicationError(
+          409,
+          "ACTIVE_REGISTRATION_REQUEST_EXISTS",
+          "You already have a school registration request awaiting review",
+        );
+      }
+
       const request = await transaction.institutionRegistrationRequest.create({
         data: {
           submittedByUserId: actor.userId,
@@ -93,6 +113,14 @@ export class InstitutionRequestService {
       );
       return request;
     });
+  }
+
+  public async listBoards(): Promise<object> {
+    const items = await this.database.board.findMany({
+      orderBy: [{ displayName: "asc" }, { boardCode: "asc" }],
+      select: { boardId: true, boardCode: true, displayName: true },
+    });
+    return { items };
   }
 
   public async listMine(userId: string, query: RequestListQuery): Promise<object> {

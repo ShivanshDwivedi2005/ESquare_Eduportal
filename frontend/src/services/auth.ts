@@ -77,7 +77,13 @@ export const authApi = {
     email: string;
     password: string;
   }) {
-    await api.post('/auth/register', input);
+    const { data } = await api.post<{ message: string }>('/auth/register', input);
+    return data;
+  },
+
+  async resendVerification(email: string) {
+    const { data } = await api.post<{ message: string }>('/auth/resend-verification', { email });
+    return data;
   },
 
   async verifyEmail(email: string, code: string) {
@@ -86,6 +92,11 @@ export const authApi = {
 
   async login(email: string, password: string) {
     const { data } = await api.post<AuthResponse>('/auth/login', { email, password });
+    return acceptAuth(data);
+  },
+
+  async loginWithGoogle(credential: string) {
+    const { data } = await api.post<AuthResponse>('/auth/google', { credential });
     return acceptAuth(data);
   },
 

@@ -111,7 +111,7 @@ model User {
   userId          String     @id @default(uuid()) @map("user_id") @db.Uuid
   email           String     @unique(map: "uq_users_email") @db.Citext
   phone           String?    @unique(map: "uq_users_phone") @db.VarChar(32)
-  passwordHash    String     @map("password_hash")
+  passwordHash    String?    @map("password_hash")
   status          UserStatus @default(ACTIVE)
   emailVerifiedAt DateTime?  @map("email_verified_at") @db.Timestamptz(6)
   phoneVerifiedAt DateTime?  @map("phone_verified_at") @db.Timestamptz(6)
@@ -130,6 +130,7 @@ model User {
   auditEntries                  AuditLog[]
   refreshSessions               RefreshSession[]
   verificationChallenges        VerificationChallenge[]
+  externalIdentities            ExternalIdentity[]
 
   @@map("users")
 }
@@ -539,4 +540,19 @@ model VerificationChallenge {
   @@index([phone, purpose, createdAt(sort: Desc)])
   @@index([expiresAt])
   @@map("verification_challenges")
+}
+
+model ExternalIdentity {
+  provider        String   @db.VarChar(32)
+  providerSubject String   @map("provider_subject") @db.VarChar(255)
+  userId          String   @map("user_id") @db.Uuid
+  email           String   @db.Citext
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@id([provider, providerSubject])
+  @@unique([provider, userId])
+  @@index([userId])
+  @@map("external_identities")
 }

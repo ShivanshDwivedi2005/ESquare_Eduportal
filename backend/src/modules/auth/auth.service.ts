@@ -9,14 +9,21 @@ import {
   sha256,
   verificationCodeDigest,
 } from "../../security/crypto.js";
-import { hashPassword, verifyPassword } from "../../security/password.js";
+import { verifyGoogleCredential } from "../../security/google-identity.js";
+import {
+  hashPassword,
+  passwordHashNeedsUpgrade,
+  verifyPassword,
+} from "../../security/password.js";
 import { writeAuditLog, type AuditContext } from "../audit/audit.service.js";
 import type { MailService } from "../notifications/mail.service.js";
 import { AuthRepository } from "./auth.repository.js";
 import type {
   ForgotPasswordInput,
+  GoogleLoginInput,
   LoginInput,
   RegisterInput,
+  ResendVerificationInput,
   ResetPasswordInput,
   VerifyEmailInput,
 } from "./auth.schemas.js";
@@ -184,6 +191,52 @@ export class AuthService {
     return { message: "Email verified" };
   }
 
+  public async resendVerification(
+    input: ResendVerificationInput,
+  ): Promise<{ message: string }> {
+    const environment = getEnvironment();
+    const now = new Date();
+    const code = generateVerificationCode();
+    const tokenHash = verificationCodeDigest(
+      input.email,
+      code,
+      environment.JWT_REFRESH_SECRET,
+    );
+
+    const shouldDeliver = await this.repository.transaction(async (transaction) => {
+      const user = await transaction.user.findUnique({ where: { email: input.email } });
+      if (
+        !user ||
+        user.emailVerifiedAt ||
+        user.status !== UserStatus.ACTIVE
+      ) {
+        return false;
+      }
+
+      await transaction.verificationChallenge.updateMany({
+        where: {
+          email: input.email,
+          purpose: ChallengePurpose.EMAIL_VERIFICATION,
+          consumedAt: null,
+        },
+        data: { consumedAt: now },
+      });
+      await transaction.verificationChallenge.create({
+        data: {
+          userId: user.userId,
+          email: input.email,
+          purpose: ChallengePurpose.EMAIL_VERIFICATION,
+          tokenHash,
+          expiresAt: addMinutes(now, environment.EMAIL_VERIFICATION_TTL_MINUTES),
+        },
+      });
+      return true;
+    });
+
+    if (shouldDeliver) await this.mail.sendEmailVerification(input.email, code);
+    return { message: genericRegistrationMessage };
+  }
+
   public async login(
     input: LoginInput,
     metadata: SessionMetadata,
@@ -198,22 +251,88 @@ export class AuthService {
       throw new ApplicationError(403, "EMAIL_NOT_VERIFIED", "Verify your email before signing in");
     }
 
-    const refreshToken = generateOpaqueToken();
+    if (user.passwordHash && passwordHashNeedsUpgrade(user.passwordHash)) {
+      await this.database.user.update({
+        where: { userId: user.userId },
+        data: { passwordHash: await hashPassword(input.password) },
+      });
+    }
+
+    return this.createSession(user.userId, metadata);
+  }
+
+  public async loginWithGoogle(
+    input: GoogleLoginInput,
+    metadata: SessionMetadata,
+  ): Promise<{ accessToken: string; refreshToken: string; user: object }> {
     const environment = getEnvironment();
-    await this.database.refreshSession.create({
-      data: {
-        userId: user.userId,
-        tokenHash: sha256(refreshToken),
-        expiresAt: addDays(new Date(), environment.REFRESH_TOKEN_TTL_DAYS),
-        ipAddress: metadata.ipAddress ?? null,
-        userAgent: metadata.userAgent?.slice(0, 500) ?? null,
-      },
+    if (
+      !environment.GOOGLE_CLIENT_ID ||
+      !environment.GOOGLE_CLIENT_ID.endsWith(".apps.googleusercontent.com")
+    ) {
+      throw new ApplicationError(
+        503,
+        "GOOGLE_AUTH_UNAVAILABLE",
+        "Google sign-in is not configured",
+      );
+    }
+
+    const identity = await verifyGoogleCredential(
+      input.credential,
+      environment.GOOGLE_CLIENT_ID,
+    );
+    const userId = await this.repository.transaction(async (transaction) => {
+      const linkedIdentity = await transaction.externalIdentity.findUnique({
+        where: {
+          provider_providerSubject: {
+            provider: "google",
+            providerSubject: identity.subject,
+          },
+        },
+        include: { user: true },
+      });
+      if (linkedIdentity) {
+        if (linkedIdentity.user.status !== UserStatus.ACTIVE) {
+          throw new ApplicationError(401, "INVALID_CREDENTIALS", "Account is unavailable");
+        }
+        return linkedIdentity.userId;
+      }
+
+      let user = await transaction.user.findUnique({ where: { email: identity.email } });
+      if (user && user.status !== UserStatus.ACTIVE) {
+        throw new ApplicationError(401, "INVALID_CREDENTIALS", "Account is unavailable");
+      }
+      if (!user) {
+        user = await transaction.user.create({
+          data: {
+            email: identity.email,
+            passwordHash: null,
+            status: UserStatus.ACTIVE,
+            emailVerifiedAt: new Date(),
+            profile: {
+              create: { firstName: identity.firstName, lastName: identity.lastName },
+            },
+          },
+        });
+      } else if (!user.emailVerifiedAt) {
+        user = await transaction.user.update({
+          where: { userId: user.userId },
+          data: { emailVerifiedAt: new Date() },
+        });
+      }
+
+      await transaction.externalIdentity.create({
+        data: {
+          provider: "google",
+          providerSubject: identity.subject,
+          userId: user.userId,
+          email: identity.email,
+        },
+      });
+      return user.userId;
     });
-    return {
-      accessToken: await createAccessToken(user.userId),
-      refreshToken,
-      user: await this.userView(user.userId),
-    };
+
+    return this.createSession(userId, metadata);
   }
 
   public async refresh(
@@ -396,5 +515,27 @@ export class AuthService {
         metadata: { reason },
       });
     });
+  }
+
+  private async createSession(
+    userId: string,
+    metadata: SessionMetadata,
+  ): Promise<{ accessToken: string; refreshToken: string; user: object }> {
+    const refreshToken = generateOpaqueToken();
+    const environment = getEnvironment();
+    await this.database.refreshSession.create({
+      data: {
+        userId,
+        tokenHash: sha256(refreshToken),
+        expiresAt: addDays(new Date(), environment.REFRESH_TOKEN_TTL_DAYS),
+        ipAddress: metadata.ipAddress ?? null,
+        userAgent: metadata.userAgent?.slice(0, 500) ?? null,
+      },
+    });
+    return {
+      accessToken: await createAccessToken(userId),
+      refreshToken,
+      user: await this.userView(userId),
+    };
   }
 }

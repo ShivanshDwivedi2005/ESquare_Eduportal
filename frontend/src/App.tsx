@@ -35,6 +35,7 @@ import Profile from "./pages/app/Profile";
 import SettingsPage from "./pages/app/Settings";
 import InstitutionProfile from "./pages/app/InstitutionProfile";
 import OrganizationProfile from "./pages/app/OrganizationProfile";
+import SchoolRegistration from "./pages/app/SchoolRegistration";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminStudents from "./pages/admin/Students";
@@ -81,6 +82,7 @@ const App = () => (
               <Route path="/app/notifications" element={<Notifications />} />
               <Route path="/app/profile" element={<Profile />} />
               <Route path="/app/settings" element={<SettingsPage />} />
+              <Route path="/school-registration" element={<SchoolRegistration />} />
               <Route path="/app/institutions/:slug" element={<InstitutionProfile />} />
               <Route path="/app/organizations/:slug" element={<OrganizationProfile />} />
 

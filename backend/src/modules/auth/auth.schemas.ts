@@ -41,6 +41,14 @@ export const loginSchema = z
   })
   .strict();
 
+export const resendVerificationSchema = z
+  .object({ email: normalizedEmail })
+  .strict();
+
+export const googleLoginSchema = z
+  .object({ credential: z.string().min(100).max(10_000) })
+  .strict();
+
 export const forgotPasswordSchema = z.object({ email: normalizedEmail }).strict();
 
 export const resetPasswordSchema = z
@@ -52,6 +60,8 @@ export const resetPasswordSchema = z
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type GoogleLoginInput = z.infer<typeof googleLoginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;

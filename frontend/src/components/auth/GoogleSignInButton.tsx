@@ -29,13 +29,17 @@ declare global {
 
 interface GoogleSignInButtonProps {
   onCredential: (credential: string) => void;
+  intent?: 'signin' | 'signup';
 }
 
 
 const SCRIPT_ID = 'google-identity-services';
 
 
-export function GoogleSignInButton({ onCredential }: GoogleSignInButtonProps) {
+export function GoogleSignInButton({
+  onCredential,
+  intent = 'signin',
+}: GoogleSignInButtonProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const callbackRef = useRef(onCredential);
   const [unavailable, setUnavailable] = useState(false);
@@ -61,7 +65,7 @@ export function GoogleSignInButton({ onCredential }: GoogleSignInButtonProps) {
         type: 'standard',
         theme: 'outline',
         size: 'large',
-        text: 'continue_with',
+        text: intent === 'signup' ? 'signup_with' : 'continue_with',
         shape: 'rectangular',
         width: Math.min(containerRef.current.clientWidth || 400, 400),
       });
@@ -88,7 +92,7 @@ export function GoogleSignInButton({ onCredential }: GoogleSignInButtonProps) {
       cancelled = true;
       script?.removeEventListener('load', render);
     };
-  }, [clientId]);
+  }, [clientId, intent]);
 
   if (unavailable) {
     return (

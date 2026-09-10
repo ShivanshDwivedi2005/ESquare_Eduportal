@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import bcrypt from "bcryptjs";
 
 import { createAccessToken, verifyAccessToken } from "../src/security/access-token.js";
 import {
@@ -6,8 +7,16 @@ import {
   sha256,
   verificationCodeDigest,
 } from "../src/security/crypto.js";
-import { hashPassword, verifyPassword } from "../src/security/password.js";
-import { loginSchema, registerSchema } from "../src/modules/auth/auth.schemas.js";
+import {
+  hashPassword,
+  passwordHashNeedsUpgrade,
+  verifyPassword,
+} from "../src/security/password.js";
+import {
+  googleLoginSchema,
+  loginSchema,
+  registerSchema,
+} from "../src/modules/auth/auth.schemas.js";
 
 beforeAll(() => {
   process.env.NODE_ENV = "test";
@@ -27,6 +36,16 @@ describe("authentication security primitives", () => {
     expect(digest).not.toContain(password);
     await expect(verifyPassword(digest, password)).resolves.toBe(true);
     await expect(verifyPassword(digest, "WrongPassword123")).resolves.toBe(false);
+    expect(passwordHashNeedsUpgrade(digest)).toBe(false);
+  });
+
+  it("accepts legacy bcrypt passwords so they can be upgraded after login", async () => {
+    const password = "LegacyPassword123";
+    const digest = await bcrypt.hash(password, 4);
+
+    await expect(verifyPassword(digest, password)).resolves.toBe(true);
+    await expect(verifyPassword(digest, "WrongPassword123")).resolves.toBe(false);
+    expect(passwordHashNeedsUpgrade(digest)).toBe(true);
   });
 
   it("binds verification codes to both recipient and server secret", () => {
@@ -94,6 +113,14 @@ describe("authentication input validation", () => {
         password: "password",
         institutionId: "9f7dddbc-3354-4f55-a9ab-ae60877235ba",
       }).success,
+    ).toBe(false);
+  });
+
+  it("validates the Google credential envelope", () => {
+    expect(googleLoginSchema.safeParse({ credential: "x".repeat(100) }).success).toBe(true);
+    expect(googleLoginSchema.safeParse({ credential: "short" }).success).toBe(false);
+    expect(
+      googleLoginSchema.safeParse({ credential: "x".repeat(100), role: "ROOT_ADMIN" }).success,
     ).toBe(false);
   });
 });

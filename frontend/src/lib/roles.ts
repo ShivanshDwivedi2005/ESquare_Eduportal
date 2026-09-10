@@ -34,6 +34,7 @@ const personal: NavGroup = {
     { title: 'Notifications', url: '/app/notifications', icon: BellRing },
     { title: 'Profile', url: '/app/profile', icon: UserCheck },
     { title: 'Settings', url: '/app/settings', icon: Settings },
+    { title: 'Register school', url: '/school-registration', icon: Building2 },
   ],
 };
 
@@ -135,6 +136,7 @@ export const navByRole: Record<UserRole, NavGroup[]> = {
       { title: 'Notifications', url: '/app/notifications', icon: BellRing },
       { title: 'Profile', url: '/app/profile', icon: UserCheck },
       { title: 'Settings', url: '/app/settings', icon: Settings },
+      { title: 'Register school', url: '/school-registration', icon: Building2 },
     ] },
   ],
 };
@@ -160,6 +162,9 @@ export const mobileNavByRole: Record<UserRole, NavItem[]> = Object.fromEntries(
       flat.find((i) => i.url.endsWith('/messages')) ?? flat.find((i) => i.url.endsWith('/notifications')),
       flat.find((i) => i.url.endsWith('/profile')),
     ].filter(Boolean) as NavItem[];
-    return [role, picks];
+    const uniquePicks = picks.filter(
+      (item, index) => picks.findIndex((candidate) => candidate.url === item.url) === index,
+    );
+    return [role, uniquePicks];
   }),
 ) as Record<UserRole, NavItem[]>;

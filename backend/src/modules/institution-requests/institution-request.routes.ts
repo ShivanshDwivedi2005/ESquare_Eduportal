@@ -39,7 +39,10 @@ export async function registerInstitutionRequestRoutes(
 
   application.post(
     "/api/v1/institution-requests",
-    { preHandler: authenticateRequest },
+    {
+      preHandler: authenticateRequest,
+      config: { rateLimit: { max: 5, timeWindow: "1 hour" } },
+    },
     async (request, reply) =>
       reply
         .status(201)
@@ -49,6 +52,12 @@ export async function registerInstitutionRequestRoutes(
             actor(request),
           ),
         ),
+  );
+
+  application.get(
+    "/api/v1/boards",
+    { preHandler: authenticateRequest },
+    async (_request, reply) => reply.send(await service.listBoards()),
   );
 
   application.get(

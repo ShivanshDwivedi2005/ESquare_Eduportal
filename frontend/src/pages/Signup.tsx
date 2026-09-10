@@ -1,16 +1,21 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { GraduationCap, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/common/Loading';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import { authApi } from '@/services/auth';
+import { useAuthStore } from '@/stores/authStore';
+import { roleHome } from '@/lib/roles';
 import { apiErrorMessage } from '@/lib/apiError';
 import { toast } from 'sonner';
 
 export default function SignupPage() {
+  const location = useLocation();
+  const requestedPath = (location.state as { from?: string } | null)?.from;
   const [step, setStep] = useState<'details' | 'verify'>('details');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -19,6 +24,7 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [code, setCode] = useState('');
   const [pending, setPending] = useState(false);
+  const loginWithGoogle = useAuthStore((state) => state.loginWithGoogle);
   const navigate = useNavigate();
 
   const register = async (event?: React.FormEvent) => {
@@ -31,14 +37,14 @@ export default function SignupPage() {
     if (password !== confirmPassword) return toast.error('The passwords do not match');
     setPending(true);
     try {
-      await authApi.register({
+      const result = await authApi.register({
         firstName,
         lastName,
         email,
         password,
       });
       setStep('verify');
-      toast.success('Check your email for the verification code');
+      toast.success(result.message);
     } catch (error) {
       toast.error(apiErrorMessage(error, 'We could not start registration. Try again.'));
     } finally {
@@ -53,9 +59,39 @@ export default function SignupPage() {
     try {
       await authApi.verifyEmail(email, code);
       toast.success('Email verified. You can now sign in.');
-      navigate('/login', { replace: true, state: { verifiedEmail: email } });
+      navigate('/login', {
+        replace: true,
+        state: { verifiedEmail: email, ...(requestedPath ? { from: requestedPath } : {}) },
+      });
     } catch (error) {
       toast.error(apiErrorMessage(error, 'That code is invalid or expired.'));
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const resendVerification = async () => {
+    if (pending) return;
+    setPending(true);
+    try {
+      const result = await authApi.resendVerification(email);
+      toast.success(result.message);
+    } catch (error) {
+      toast.error(apiErrorMessage(error, 'We could not send another code. Try again.'));
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const signupWithGoogle = async (credential: string) => {
+    if (pending) return;
+    setPending(true);
+    try {
+      const user = await loginWithGoogle(credential);
+      toast.success(`Welcome, ${user.name.split(' ')[0]}`);
+      navigate(requestedPath || roleHome[user.role], { replace: true });
+    } catch (error) {
+      toast.error(apiErrorMessage(error, 'Google signup could not be completed.'));
     } finally {
       setPending(false);
     }
@@ -82,6 +118,8 @@ export default function SignupPage() {
                 <div className="space-y-2"><Label htmlFor="confirm-password">Confirm password</Label><Input id="confirm-password" type="password" autoComplete="new-password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required /></div>
               </div>
               <Button type="submit" className="mt-7 w-full gap-2" size="lg" disabled={pending}>{pending && <Spinner />}{pending ? 'Sending code…' : 'Create account'}</Button>
+              <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" /><span>or</span><span className="h-px flex-1 bg-border" /></div>
+              <GoogleSignInButton intent="signup" onCredential={(credential) => void signupWithGoogle(credential)} />
             </form>
           ) : (
             <form onSubmit={verify} className="px-6 py-8 sm:px-8">
@@ -90,11 +128,11 @@ export default function SignupPage() {
               <Label htmlFor="code" className="sr-only">Verification code</Label>
               <Input id="code" className="mx-auto mt-7 h-12 max-w-xs text-center font-mono text-xl tracking-[0.45em]" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} autoFocus required />
               <Button type="submit" className="mt-6 w-full gap-2" size="lg" disabled={pending || code.length !== 6}>{pending && <Spinner />}{pending ? 'Verifying…' : 'Verify email'}</Button>
-              <button type="button" className="mt-4 w-full text-xs font-medium text-primary hover:underline" onClick={() => void register()} disabled={pending}>Send a new code</button>
+              <button type="button" className="mt-4 w-full text-xs font-medium text-primary hover:underline" onClick={() => void resendVerification()} disabled={pending}>Send a new code</button>
             </form>
           )}
         </div>
-        <p className="mt-6 text-center text-sm text-muted-foreground">Already registered? <Link to="/login" className="font-medium text-primary hover:underline">Sign in</Link></p>
+        <p className="mt-6 text-center text-sm text-muted-foreground">Already registered? <Link to="/login" state={requestedPath ? { from: requestedPath } : undefined} className="font-medium text-primary hover:underline">Sign in</Link></p>
       </div>
     </div>
   );

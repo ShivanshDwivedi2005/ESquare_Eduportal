@@ -11,8 +11,10 @@ import { requireTrustedOrigin } from "../../middleware/trusted-origin.js";
 import { createMailService } from "../notifications/mail.service.js";
 import {
   forgotPasswordSchema,
+  googleLoginSchema,
   loginSchema,
   registerSchema,
+  resendVerificationSchema,
   resetPasswordSchema,
   verifyEmailSchema,
 } from "./auth.schemas.js";
@@ -73,6 +75,30 @@ export async function registerAuthRoutes(application: FastifyInstance): Promise<
     { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
     async (request, reply) => {
       const result = await service.login(parseInput(loginSchema, request.body), metadata(request));
+      setRefreshCookie(reply, result.refreshToken);
+      return reply.send({ accessToken: result.accessToken, user: result.user });
+    },
+  );
+
+  application.post(
+    "/api/v1/auth/resend-verification",
+    { config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } },
+    async (request, reply) =>
+      reply.status(202).send(
+        await service.resendVerification(
+          parseInput(resendVerificationSchema, request.body),
+        ),
+      ),
+  );
+
+  application.post(
+    "/api/v1/auth/google",
+    { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } },
+    async (request, reply) => {
+      const result = await service.loginWithGoogle(
+        parseInput(googleLoginSchema, request.body),
+        metadata(request),
+      );
       setRefreshCookie(reply, result.refreshToken);
       return reply.send({ accessToken: result.accessToken, user: result.user });
     },

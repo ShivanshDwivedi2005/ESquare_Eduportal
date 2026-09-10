@@ -1,6 +1,7 @@
 import argon2 from "argon2";
 import { PlatformRole, Prisma, PrismaClient, UserStatus } from "@prisma/client";
 
+import { loadProjectEnvironment } from "../src/config/bootstrap-environment.js";
 import {
   PERMISSION_CODES,
   type PermissionCode,
@@ -8,6 +9,8 @@ import {
   ROLE_CODES,
   type RoleCode,
 } from "../src/security/authorization-catalog.js";
+
+loadProjectEnvironment();
 
 const database = new PrismaClient();
 
@@ -168,11 +171,14 @@ async function seedPlatformAdministrator(client: Prisma.TransactionClient): Prom
 }
 
 async function main(): Promise<void> {
-  await database.$transaction(async (client) => {
-    await seedAuthorizationCatalog(client);
-    await seedBoards(client);
-    await seedPlatformAdministrator(client);
-  });
+  await database.$transaction(
+    async (client) => {
+      await seedAuthorizationCatalog(client);
+      await seedBoards(client);
+      await seedPlatformAdministrator(client);
+    },
+    { maxWait: 10_000, timeout: 120_000 },
+  );
 }
 
 main()

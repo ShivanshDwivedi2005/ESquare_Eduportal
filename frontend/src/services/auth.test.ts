@@ -60,6 +60,16 @@ describe('authApi', () => {
     });
   });
 
+  it('exchanges a Google credential for the secure auth response', async () => {
+    post.mockResolvedValue({ data: { accessToken: 'access-token', user: apiUser } });
+
+    const user = await authApi.loginWithGoogle('google-id-token');
+
+    expect(post).toHaveBeenCalledWith('/auth/google', { credential: 'google-id-token' });
+    expect(setAccessToken).toHaveBeenCalledWith('access-token');
+    expect(user.email).toBe('aditi@example.com');
+  });
+
   it('sends registration fields without legacy usernames or role claims', async () => {
     post.mockResolvedValue({ data: { message: 'sent' } });
     await authApi.register({
@@ -82,6 +92,14 @@ describe('authApi', () => {
     expect(post).toHaveBeenCalledWith('/auth/verify-email', {
       email: 'aditi@example.com',
       code: '123456',
+    });
+  });
+
+  it('requests a new verification code without resubmitting account details', async () => {
+    post.mockResolvedValue({ data: { message: 'sent' } });
+    await authApi.resendVerification('aditi@example.com');
+    expect(post).toHaveBeenCalledWith('/auth/resend-verification', {
+      email: 'aditi@example.com',
     });
   });
 });

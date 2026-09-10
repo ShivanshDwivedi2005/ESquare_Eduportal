@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/common/Loading';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import { useAuthStore } from '@/stores/authStore';
 import { roleHome } from '@/lib/roles';
 import { apiErrorMessage } from '@/lib/apiError';
@@ -13,10 +14,12 @@ import { toast } from 'sonner';
 
 export default function LoginPage() {
   const location = useLocation();
+  const requestedPath = (location.state as { from?: string } | null)?.from;
   const [email, setEmail] = useState((location.state as { verifiedEmail?: string } | null)?.verifiedEmail ?? '');
   const [password, setPassword] = useState('');
   const [pending, setPending] = useState(false);
   const login = useAuthStore((state) => state.login);
+  const loginWithGoogle = useAuthStore((state) => state.loginWithGoogle);
   const navigate = useNavigate();
 
   const submit = async (event: React.FormEvent) => {
@@ -26,10 +29,23 @@ export default function LoginPage() {
     try {
       const user = await login(email, password);
       toast.success(`Welcome back, ${user.name.split(' ')[0]}`);
-      const requestedPath = (location.state as { from?: string } | null)?.from;
       navigate(requestedPath || roleHome[user.role], { replace: true });
     } catch (error) {
       toast.error(apiErrorMessage(error, 'We could not sign you in. Try again.'));
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const submitGoogle = async (credential: string) => {
+    if (pending) return;
+    setPending(true);
+    try {
+      const user = await loginWithGoogle(credential);
+      toast.success(`Welcome, ${user.name.split(' ')[0]}`);
+      navigate(requestedPath || roleHome[user.role], { replace: true });
+    } catch (error) {
+      toast.error(apiErrorMessage(error, 'Google sign-in could not be completed.'));
     } finally {
       setPending(false);
     }
@@ -48,7 +64,9 @@ export default function LoginPage() {
             <div className="space-y-2"><div className="flex items-center justify-between"><Label htmlFor="password">Password</Label><Link to="/forgot-password" className="text-xs font-medium text-primary hover:underline">Forgot password?</Link></div><Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
             <Button type="submit" className="w-full gap-2" size="lg" disabled={pending}>{pending && <Spinner />}{pending ? 'Signing in…' : 'Sign in'}</Button>
           </form>
-          <p className="mt-6 text-sm text-muted-foreground">New to ESQUARE? <Link to="/signup" className="font-medium text-primary hover:underline">Create your account</Link></p>
+          <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground"><span className="h-px flex-1 bg-border" /><span>or</span><span className="h-px flex-1 bg-border" /></div>
+          <GoogleSignInButton onCredential={(credential) => void submitGoogle(credential)} />
+          <p className="mt-6 text-sm text-muted-foreground">New to ESQUARE? <Link to="/signup" state={requestedPath ? { from: requestedPath } : undefined} className="font-medium text-primary hover:underline">Create your account</Link></p>
         </div>
       </div>
       <aside className="hidden border-l border-border bg-surface-muted px-12 lg:flex lg:flex-col lg:justify-center"><div className="max-w-md"><ShieldCheck className="h-7 w-7 text-primary" /><h2 className="mt-5 text-xl font-semibold">One account, even when your role changes</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">Institution roles are attached through verified memberships. Your password is never shared with an institution.</p></div></aside>

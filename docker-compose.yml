@@ -6,8 +6,11 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - path: backend/.env
+      - path: .env
         required: false
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      APP_ENV: ${APP_ENV:-development}
     command: ["node", "dist/src/server.js"]
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:8000/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]

@@ -1,4 +1,5 @@
 import argon2 from "argon2";
+import bcrypt from "bcryptjs";
 
 const options = {
   type: argon2.argon2id,
@@ -14,12 +15,19 @@ export function hashPassword(password: string): Promise<string> {
 }
 
 export async function verifyPassword(
-  passwordHash: string | undefined,
+  passwordHash: string | null | undefined,
   password: string,
 ): Promise<boolean> {
   try {
+    if (passwordHash?.startsWith("$2")) {
+      return await bcrypt.compare(password, passwordHash);
+    }
     return await argon2.verify(passwordHash ?? (await dummyPasswordHash), password);
   } catch {
     return false;
   }
+}
+
+export function passwordHashNeedsUpgrade(passwordHash: string): boolean {
+  return !passwordHash.startsWith("$argon2id$");
 }

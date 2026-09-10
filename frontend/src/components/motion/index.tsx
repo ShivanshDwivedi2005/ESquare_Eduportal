@@ -11,10 +11,11 @@ import {
 
 export function AnimatedPage({ children, className }: { children: React.ReactNode; className?: string }) {
   const reduced = useReducedMotion();
+  if (reduced) return <div className={className}>{children}</div>;
   return (
     <motion.div
       className={className}
-      variants={reduced ? { hidden: { opacity: 0 }, show: { opacity: 1 }, exit: { opacity: 0 } } : pageTransition}
+      variants={pageTransition}
       initial="hidden"
       animate="show"
       exit="exit"

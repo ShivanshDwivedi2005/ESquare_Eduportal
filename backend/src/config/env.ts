@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+import { loadProjectEnvironment } from "./bootstrap-environment.js";
+
+loadProjectEnvironment();
+
 const booleanFromString = z
   .enum(["true", "false"])
   .transform((value) => value === "true");
@@ -32,6 +36,7 @@ export const environmentSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASSWORD: z.string().optional(),
   SMTP_FROM: z.string().email().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
 }).superRefine((environment, context) => {
   const origins = environment.CORS_ORIGINS.split(",").map((origin) => origin.trim());
   if (origins.includes("*")) {
