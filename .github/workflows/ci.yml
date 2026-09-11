@@ -11,24 +11,42 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: esquare
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d esquare"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: backend
     env:
-      DATABASE_URL: postgresql://ci:ci@localhost:5432/esquare?sslmode=require
-      DIRECT_DATABASE_URL: postgresql://ci:ci@localhost:5432/esquare?sslmode=require
+      ENVIRONMENT: test
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/esquare
+      DIRECT_DATABASE_URL: postgresql://ci:ci@localhost:5432/esquare
+      JWT_ACCESS_SECRET: ci-access-secret-at-least-thirty-two-characters
+      JWT_REFRESH_SECRET: ci-refresh-secret-at-least-thirty-two-characters
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-python@v5
         with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: backend/package-lock.json
-      - run: npm ci
-      - run: npm run db:generate
-      - run: npx prisma validate
-      - run: npm run check
-      - run: npm audit --audit-level=high
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - run: pip install -e ".[dev]"
+      - run: ruff check app scripts tests
+      - run: python -m compileall -q app scripts
+      - run: python -m alembic upgrade head
+      - run: python -m scripts.seed
+      - run: pytest
 
   frontend:
     runs-on: ubuntu-latest

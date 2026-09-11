@@ -1,27 +1,16 @@
-FROM node:22-bookworm-slim AS build
-WORKDIR /workspace/backend
+FROM python:3.12-slim
 
-COPY backend/package.json backend/package-lock.json ./
-RUN npm ci
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    ENVIRONMENT=production
 
-COPY backend/prisma ./prisma
-RUN npx prisma generate
-
-COPY backend/tsconfig.json ./
-COPY backend/src ./src
-COPY backend/tests ./tests
-RUN npm run build
-
-FROM node:22-bookworm-slim AS runtime
-ENV NODE_ENV=production
 WORKDIR /app
+COPY backend/pyproject.toml backend/requirements.txt ./
+COPY backend/app ./app
+RUN pip install --upgrade pip && pip install .
 
-COPY backend/package.json backend/package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
-COPY --from=build /workspace/backend/node_modules/.prisma ./node_modules/.prisma
-COPY --from=build /workspace/backend/dist ./dist
-COPY backend/prisma ./prisma
-
-USER node
+RUN useradd --create-home --uid 10001 esquare
+USER esquare
 EXPOSE 8000
-CMD ["node", "dist/src/server.js"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers"]

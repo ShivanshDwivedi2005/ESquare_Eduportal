@@ -1,0 +1,1 @@
+"""ESQUARE FastAPI application."""

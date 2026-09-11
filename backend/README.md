@@ -1,42 +1,28 @@
-# ESQUARE backend
+# ESQUARE FastAPI backend
 
-The API is a strict-TypeScript Fastify modular monolith backed exclusively by PostgreSQL. Neon is the target hosted database; SQLite is not supported.
+The backend is a Python 3.12 FastAPI application backed exclusively by PostgreSQL. It preserves the existing `/api/v1` routes and database schema while using SQLAlchemy transactions, PostgreSQL row-level security, Pydantic validation, Argon2 passwords, rotating refresh sessions, Google ID-token verification, and SMTP mail.
 
 ## Local setup
 
-1. Configure the repository-level `../.env`. The backend accepts the legacy
-   `JWT_SECRET`, `JWT_EXPIRE_MINUTES`, `SMTP_EMAIL`, and `SMTP_PASSWORD` names
-   and maps them to its current configuration. Explicit current variable names
-   still take precedence.
-2. Install dependencies with `npm ci`.
-3. Generate the client with `npm run db:generate`.
-4. Apply migrations with `npm run db:migrate`.
-5. Seed roles, permissions, boards, and optionally the first platform administrator with `npm run db:seed`.
-6. Start the API with `npm run dev`.
+1. Configure the repository-level `../.env`. Existing `JWT_SECRET`, `JWT_EXPIRE_MINUTES`, `SMTP_EMAIL`, and `SMTP_PASSWORD` variables remain supported. `ENVIRONMENT` replaces `NODE_ENV`; `NODE_ENV` remains accepted during migration.
+2. Create and activate a Python 3.12 virtual environment.
+3. Run `python -m pip install -e ".[dev]"` from `backend/`.
+4. For a new database, run `python -m alembic upgrade head`, then `python -m scripts.seed`.
+5. For an existing database already migrated by Prisma, run `python -m alembic stamp head` once, then `python -m scripts.seed`.
+6. Start the API with `python -m app.server` or `uvicorn app.main:app --reload --port 8000`.
 
-When upgrading a database created by the legacy backend, run
-`npm run db:preserve-legacy` before the first migration, then run the normal
-migration and seed commands followed by `npm run db:import-legacy`. The preserve
-step renames the former schemas and conflicting project-management `boards`
-table instead of deleting them.
+Legacy upgrades use `python -m scripts.preserve_legacy` before the baseline migration and `python -m scripts.import_legacy_data` after seeding. Validate live authentication with `python -m scripts.smoke_auth`.
 
-Use a direct Neon connection for migrations and a pooled connection for `DATABASE_URL` when deploying serverless or horizontally scaled API instances. Both connection strings must use TLS.
+The interactive API contract is available at `http://localhost:8000/docs` while the server is running.
 
-The initial migration intentionally drops the former `auth`, `core`, and `academics` schemas. Back up any valuable environment before applying it.
+## Google login
 
-## Google login and signup
+Set `GOOGLE_CLIENT_ID` to an OAuth 2.0 Web application client ID. Add every frontend origin that displays the Google button to the Google Cloud project's Authorized JavaScript origins. The browser sends an ID token to `/api/v1/auth/google`; no Google client secret is used.
 
-Set `GOOGLE_CLIENT_ID` in the repository-level `.env` to an OAuth 2.0 **Web application** client ID. In Google Cloud Console, add every frontend origin that displays the Google button under **Authorized JavaScript origins**. Local development normally needs:
+## Email delivery
 
-- `http://localhost:8080`
-- `http://127.0.0.1:8080` if the app is opened with that address
+Email verification, password resets, and invitations require `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, and `SMTP_FROM`. The legacy `SMTP_EMAIL` plus `SMTP_PASSWORD` pair maps to Gmail SMTP automatically.
 
-Also add the deployed frontend origin. If the OAuth consent screen is in **Testing**, add each Google account that will sign in as a test user. A Google client secret is not used by this browser ID-token flow. Restart both development servers after changing `.env`.
+## Production settings
 
-## Production safeguards
-
-- Set `NODE_ENV=production`, `APP_ENV=production`, `COOKIE_SECURE=true`, and use an HTTPS `APP_BASE_URL`.
-- Use different 32+ character secrets for access and refresh tokens.
-- Both database URLs must be PostgreSQL TLS URLs; `DIRECT_DATABASE_URL` is required for migrations.
-- Run `npm run check` and `npm audit` before deployment. The GitHub Actions workflow enforces validation, tests, builds, and high-severity dependency audits.
-- Apply the destructive initial migration only to a reviewed Neon branch after taking any required backup.
+Set `ENVIRONMENT=production`, `APP_ENV=production`, `COOKIE_SECURE=true`, an HTTPS `APP_BASE_URL`, and distinct secrets of at least 32 characters. `DATABASE_URL` and `DIRECT_DATABASE_URL` must be PostgreSQL TLS URLs. Apply Alembic migrations with the direct URL before starting the API.
